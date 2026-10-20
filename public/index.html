@@ -3,23 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Auction Night · IPL Edition</title>
-  <meta name="theme-color" content="#0E1A4A" />
+  <title>Auction Room · IPL Edition</title>
+  <meta name="theme-color" content="#0A0F1E" />
   <meta name="description" content="Run a live IPL-style player auction with up to 10 friends. Claim a franchise, get ₹120 cr and bid against the clock." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="sky" aria-hidden="true">
-    <div class="light l"></div><div class="light r"></div>
-    <div class="beam l"></div><div class="beam r"></div>
-    <div id="sparks"></div>
-    <div class="crowd"></div>
-  </div>
+  <div class="backdrop" aria-hidden="true"><span class="glow a"></span><span class="glow b"></span><span class="field"></span></div>
   <canvas id="confetti" aria-hidden="true"></canvas>
-  <main id="app" aria-live="polite"></main>
+  <div id="app" aria-live="polite"></div>
   <div id="toast" role="status"></div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="/app.js"></script>

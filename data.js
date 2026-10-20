@@ -6,7 +6,8 @@ const RULES = {
   maxSquad: 25,
   maxMembers: 10,    // people allowed in one room
   maxOverseas: 8,
-  bidSeconds: 10,    // countdown resets to this on every bid
+  bidSeconds: 10,    // default countdown; it resets to this on every bid
+  timerOptions: [5, 8, 10, 15, 20, 30], // countdowns the host can choose
   breakSeconds: 3,   // pause between lots
   xiSize: 11,        // Playing XI
   xiMaxOverseas: 4   // overseas allowed in the XI, counting the Impact Player

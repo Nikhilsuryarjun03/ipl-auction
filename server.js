@@ -27,7 +27,7 @@ function newCode() {
 function createRoom() {
   const room = {
     code: newCode(), hostId: null, phase: 'lobby', // lobby | auction | finished
-    members: new Map(), purse: {}, squads: {}, xi: {},
+    members: new Map(), purse: {}, squads: {}, xi: {}, bidSeconds: RULES.bidSeconds,
     queue: [], unsold: [], unsoldRound: false,
     lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | closed
     result: null, paused: false, log: [], interval: null, nextTimer: null, cleanupTimer: null
@@ -46,7 +46,7 @@ function publicState(room) {
   const owners = {};
   room.members.forEach(m => { if (m.teamId) owners[m.teamId] = m.name; });
   return {
-    code: room.code, hostId: room.hostId, phase: room.phase, rules: RULES,
+    code: room.code, hostId: room.hostId, phase: room.phase, rules: { ...RULES, bidSeconds: room.bidSeconds },
     members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
     teams: TEAMS.map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
@@ -85,7 +85,7 @@ function nextLot(room) {
   if (!room.queue.length) return finish(room);
   room.lot = room.queue.shift();
   room.bid = null; room.leader = null; room.result = null;
-  room.timeLeft = RULES.bidSeconds; room.status = 'live';
+  room.timeLeft = room.bidSeconds; room.status = 'live';
   broadcast(room);
 }
 
@@ -210,7 +210,7 @@ io.on('connection', socket => {
     const r = room(), m = member(); if (!r || !m) return;
     const err = canBid(r, m.teamId); if (err) return socket.emit('toast', err);
     r.bid = r.bid == null ? r.lot.base : r.bid + increment(r.bid);
-    r.leader = m.teamId; r.timeLeft = RULES.bidSeconds;
+    r.leader = m.teamId; r.timeLeft = r.bidSeconds;
     broadcast(r);
   });
 
@@ -225,6 +225,16 @@ io.on('connection', socket => {
     addLog(r, `${TEAMS.find(t => t.id === m.teamId).name} announced their Playing XI.`);
     broadcast(r);
     cb?.({ ok: true });
+  });
+
+  socket.on('setTimer', ({ seconds } = {}) => {
+    const r = room(); if (!r || !isHost() || r.phase === 'finished') return;
+    const s = Number(seconds);
+    if (!RULES.timerOptions.includes(s) || s === r.bidSeconds) return;
+    r.bidSeconds = s;
+    if (r.status === 'live' && r.timeLeft > s) r.timeLeft = s;
+    addLog(r, `Bid timer set to ${s} seconds.`);
+    broadcast(r);
   });
 
   socket.on('pause', () => { const r = room(); if (r && isHost() && r.phase === 'auction') { r.paused = !r.paused; addLog(r, r.paused ? 'Auction paused.' : 'Auction resumed.'); broadcast(r); } });
