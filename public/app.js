@@ -8,7 +8,7 @@ let view = 'board';       // board | squads | xi | xi-edit
 let lastKey = '';
 let meta = null;          // { teams, rules } sent on connect, used before joining a room
 let draft = null;         // Playing XI being edited: { xi: [ids in batting order], impact }
-let homeTab = new URLSearchParams(location.search).get('room') ? 'join' : 'create';
+let homeTab = 'create';
 let lastSold = '';
 let lastBid = null;
 
@@ -155,6 +155,9 @@ function playSounds(prev, s) {
 
 // ---------- socket ----------
 socket.on('connect', () => {
+  // An invite to a different room beats the room this browser was last in.
+  const invite = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase();
+  if (session && invite && session.code !== invite) save(null);
   if (session) socket.emit('rejoin', session, res => { if (!res?.ok) { save(null); state = null; render(true); } });
   else render(true);
 });
@@ -205,8 +208,23 @@ function topBar() {
   </div></header>`;
 }
 
+// Invite links (/?room=CODE) only ask for a name; the code comes from the link.
+function inviteCard(code) {
+  return `<section class="card entry invite">
+    <span class="label">You’re invited to join</span>
+    <div class="invite-room">Room <b>${esc(code)}</b></div>
+    <form id="inviteForm">
+      <label for="iName">Your name</label>
+      <input id="iName" maxlength="20" required autocomplete="nickname" placeholder="e.g. Prudhvi" autofocus />
+      <button class="btn primary block" type="submit">Join room</button>
+      <div class="error" id="iErr"></div>
+    </form>
+    <p class="hint center">Not your room? <button class="link" id="noInvite" type="button">Create or join a different one</button></p>
+  </section>`;
+}
+
 function homeView() {
-  const preset = new URLSearchParams(location.search).get('room') || '';
+  const invite = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase().slice(0, 5);
   const r = meta?.rules;
   app.innerHTML = `<div class="home">
     <header class="topbar plain"><div class="topbar-in">${brand}</div></header>
@@ -222,7 +240,7 @@ function homeView() {
         </dl>
         <div class="logo-row" aria-hidden="true">${(meta?.teams || []).map(t => badge(t)).join('')}</div>
       </section>
-      <section class="card entry">
+      ${invite ? inviteCard(invite) : `<section class="card entry">
         <div class="seg" role="tablist">
           <button role="tab" class="${homeTab === 'create' ? 'on' : ''}" aria-selected="${homeTab === 'create'}" data-tab="create">Create room</button>
           <button role="tab" class="${homeTab === 'join' ? 'on' : ''}" aria-selected="${homeTab === 'join'}" data-tab="join">Join room</button>
@@ -238,13 +256,21 @@ function homeView() {
           <label for="jName">Your name</label>
           <input id="jName" maxlength="20" required autocomplete="nickname" placeholder="e.g. Prudhvi" />
           <label for="jCode">Room code</label>
-          <input id="jCode" class="code" maxlength="5" required value="${esc(preset)}" placeholder="ABCDE" autocapitalize="characters" />
+          <input id="jCode" class="code" maxlength="5" required placeholder="ABCDE" autocapitalize="characters" />
           <button class="btn primary block" type="submit">Join room</button>
           <div class="error" id="jErr"></div>
         </form>
-      </section>
+      </section>`}
     </main>
   </div>`;
+  if (invite) {
+    inviteForm.onsubmit = e => {
+      e.preventDefault();
+      socket.emit('join', { name: iName.value, code: invite }, res => res.ok ? save(res) : (iErr.textContent = res.error));
+    };
+    noInvite.onclick = () => { history.replaceState(null, '', '/'); homeTab = 'create'; homeView(); };
+    return;
+  }
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     homeTab = b.dataset.tab;
     app.querySelectorAll('[data-tab]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); });

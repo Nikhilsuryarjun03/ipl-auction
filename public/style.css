@@ -181,6 +181,11 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .entry { padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
 .entry .seg { display: flex; margin-bottom: 18px; }
 .entry .seg button { flex: 1; padding: 8px; font-size: 14px; }
+.invite .label { display: block; }
+.invite-room { font-size: 22px; font-weight: 700; margin: 4px 0 6px; }
+.invite-room b { color: var(--accent); letter-spacing: .14em; margin-left: 4px; }
+.invite .hint { margin-top: 14px; }
+.invite .link { color: var(--accent); }
 label { display: block; font-size: 13px; font-weight: 600; color: var(--dim); margin: 12px 0 6px; }
 input {
   width: 100%; height: 44px; padding: 0 14px; border-radius: var(--radius-sm);
