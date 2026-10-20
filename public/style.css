@@ -237,6 +237,19 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-family: var(-
 .bid-btn b { font-size: 2.2rem; }
 .bid-btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 2px 0 #B23F00; }
 .bid-btn:disabled { background: #2A3466; color: #7C87B8; box-shadow: none; cursor: not-allowed; }
+.join-strip {
+  position: relative; z-index: 2; margin-top: 20px; padding: 18px 20px; border-radius: 16px; display: grid; gap: 6px;
+  background: rgba(255,201,60,.1); border: 1.5px dashed rgba(255,201,60,.55);
+}
+.join-strip strong { font-family: var(--display); font-size: 1.5rem; text-transform: uppercase; color: var(--gold); }
+.join-teams { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.join-team {
+  display: grid; justify-items: center; gap: 6px; padding: 10px 8px; min-width: 72px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--line); background: rgba(0,0,0,.25); color: var(--text); font-weight: 700; font-size: .8rem;
+  transition: transform .1s, background .1s;
+}
+.join-team:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--c) 30%, transparent); }
+.warn-text { color: #FFE08A; margin: 10px 0 0; }
 .bid-hint { color: var(--text-dim); font-size: .875rem; min-height: 1.3em; margin-top: 10px; text-align: center; }
 
 .stamp {

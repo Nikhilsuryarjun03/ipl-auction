@@ -230,16 +230,29 @@ function lobbyView() {
         </div>
         ${isHost()
           ? `<button class="btn primary block" data-act="start" ${claimed ? '' : 'disabled'}>Start the auction</button>
-             ${claimed ? '' : '<p class="small muted">Claim at least one team to start.</p>'}`
+             ${claimed ? '' : '<p class="small muted">Claim at least one team to start.</p>'}
+             ${claimed && !mine ? '<p class="small warn-text">You haven’t claimed a team yourself. Pick one above if you want to bid.</p>' : ''}`
           : '<p class="muted waiting">Waiting for the host to start the auction…</p>'}
       </aside>
     </div>
   </div>`;
 }
 
+// Shown on the auction board to anyone without a team, so late joiners can still play.
+function joinStrip() {
+  const free = state.teams.filter(t => !t.owner);
+  return `<div class="join-strip">
+    <strong>You don’t have a team yet</strong>
+    ${free.length
+      ? `<span class="small muted">Pick a free franchise to start bidding. You get the full ${fmt(state.rules.purse)} purse.</span>
+         <div class="join-teams">${free.map(t => `<button class="join-team" data-act="pick" data-team="${t.id}" style="${teamVars(t)}" title="${esc(t.name)}">${badge(t)}<span>${esc(t.id)}</span></button>`).join('')}</div>`
+      : '<span class="small muted">All 10 franchises are taken, so you’re watching this one.</span>'}
+  </div>`;
+}
+
 function bidState() {
   const m = me(), t = m?.teamId && team(m.teamId);
-  if (!t) return { ok: false, hint: 'You’re watching. Claim a team in the next auction to bid.' };
+  if (!t) return { ok: false, hint: 'Pick a free franchise to start bidding.' };
   if (state.paused) return { ok: false, hint: 'The host has paused the auction.' };
   if (state.status !== 'live') return { ok: false, hint: 'Next player coming up.' };
   if (state.leader === t.id) return { ok: false, hint: 'You hold the top bid.' };
@@ -285,10 +298,12 @@ function auctionView() {
             </div>
             <div class="clock" id="clock"><span id="clockNum"></span></div>
           </div>
-          <button class="bid-btn" data-act="bid" ${b.ok ? '' : 'disabled'}>
-            <span>Raise paddle</span><b>${fmt(state.nextBid)}</b>
-          </button>
-          <div class="bid-hint">${esc(b.hint)}</div>
+          ${me()?.teamId ? `
+            <button class="bid-btn" data-act="bid" ${b.ok ? '' : 'disabled'}>
+              <span>Raise paddle</span><b>${fmt(state.nextBid)}</b>
+            </button>
+            <div class="bid-hint">${esc(b.hint)}</div>`
+          : joinStrip()}
           ${r ? `<div class="stamp ${r.sold ? 'sold' : 'unsold'}">${r.sold ? `Sold<small>${esc(soldTo.id)} · ${fmt(r.price)}</small>` : 'Unsold'}</div>` : ''}
           ${state.paused ? '<div class="paused">Paused</div>' : ''}
           ${isHost() ? `<div class="host-ctrl">

@@ -195,7 +195,9 @@ io.on('connection', socket => {
     if (!TEAMS.some(t => t.id === teamId)) return;
     if ([...r.members.values()].some(x => x.teamId === teamId && x.id !== m.id)) return socket.emit('toast', 'That team is taken.');
     if (r.phase !== 'lobby' && m.teamId) return socket.emit('toast', 'Teams are locked once the auction starts.');
-    m.teamId = teamId; broadcast(r);
+    m.teamId = teamId;
+    if (r.phase === 'auction') addLog(r, `${m.name} joined the auction as ${TEAMS.find(t => t.id === teamId).name}.`);
+    broadcast(r);
   });
 
   socket.on('start', () => {
