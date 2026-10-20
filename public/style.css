@@ -181,11 +181,40 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .entry { padding: 20px; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
 .entry .seg { display: flex; margin-bottom: 18px; }
 .entry .seg button { flex: 1; padding: 8px; font-size: 14px; }
-.invite .label { display: block; }
-.invite-room { font-size: 22px; font-weight: 700; margin: 4px 0 6px; }
-.invite-room b { color: var(--accent); letter-spacing: .14em; margin-left: 4px; }
-.invite .hint { margin-top: 14px; }
-.invite .link { color: var(--accent); }
+/* invite sheet: slides up over the home page when opened from an invite link */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: end center; padding: 16px;
+  background: rgba(5,8,18,.6); backdrop-filter: blur(3px); animation: fadeIn .2s ease-out;
+}
+.sheet {
+  position: relative; width: 100%; max-width: 400px; margin-bottom: 8vh; padding: 24px; text-align: center;
+  background: var(--surface); border: 1px solid var(--border-2); border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55); animation: sheetUp .32s cubic-bezier(.2,.9,.3,1.1);
+}
+.sheet-close { position: absolute; top: 12px; right: 12px; }
+.sheet-icon { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: rgba(245,184,65,.12); font-size: 24px; margin-bottom: 12px; }
+.sheet .label { display: block; }
+.sheet h2 { font-size: 22px; font-weight: 700; margin: 4px 0 6px; }
+.sheet h2 b { color: var(--accent); letter-spacing: .12em; }
+.sheet form { margin-top: 16px; text-align: left; }
+.sheet-backdrop.closing { animation: fadeOut .2s forwards; }
+.sheet-backdrop.closing .sheet { animation: sheetDown .2s forwards; }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; } }
+@keyframes sheetUp { from { transform: translateY(60px); opacity: 0; } }
+@keyframes sheetDown { to { transform: translateY(60px); opacity: 0; } }
+
+/* lobby invite card */
+.invite-card { border-color: rgba(245,184,65,.35); }
+.invite-link {
+  padding: 9px 12px; border-radius: var(--radius-sm); background: var(--bg); border: 1px dashed var(--border-2);
+  font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.invite-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.invite-actions .btn { flex: 1; text-decoration: none; white-space: nowrap; }
+.invite-actions .btn.primary { flex-basis: 100%; height: 38px; }
+.invite-card .hint { margin-top: 10px; }
+.chip-act { display: inline-flex; align-items: center; gap: 5px; padding-left: 10px; margin-left: 2px; border-left: 1px solid var(--border-2); color: var(--text); font-weight: 600; }
 label { display: block; font-size: 13px; font-weight: 600; color: var(--dim); margin: 12px 0 6px; }
 input {
   width: 100%; height: 44px; padding: 0 14px; border-radius: var(--radius-sm);
@@ -396,6 +425,8 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
   .topbar-in { padding: 8px 16px; }
   .brand > span:not(.brand-mark):not(.brand-tag) { display: none; }
   .me-chip > span:not(.badge) { display: none; }
+  .chip-act span { display: none; }
+  .sheet { margin-bottom: 0; }
   .me-chip { padding: 0 8px; }
   .lot-card { grid-template-columns: 104px 1fr; gap: 14px; padding: 14px; }
   .lot-photo { width: 104px; height: 128px; }

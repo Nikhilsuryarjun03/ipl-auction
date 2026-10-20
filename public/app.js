@@ -29,8 +29,11 @@ const ICON = {
   soundOn: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
   soundOff: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>',
   exit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11"/></svg>',
-  back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'
+  back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>'
 };
+const inviteUrl = () => `${location.origin}/?room=${state.code}`;
+const inviteText = () => `Join my IPL auction! Tap the link and enter your name: ${inviteUrl()}`;
 
 // Dark or light text, whichever reads better on the team colour.
 function ink(hex) {
@@ -199,7 +202,7 @@ function topBar() {
     ${brand}
     <div class="tb-right">
       <button class="room-chip" data-act="copy" title="Copy invite link">
-        <span class="muted">Room</span><b>${esc(state.code)}</b>${ICON.copy}
+        <span class="muted">Room</span><b>${esc(state.code)}</b><span class="chip-act">${ICON.copy}<span>Invite</span></span>
       </button>
       ${t ? `<span class="me-chip">${badge(t, 'xs')}<span>${esc(me().name)}</span></span>` : ''}
       <button class="icon-btn" data-act="sound" title="${sfx.on ? 'Mute sounds' : 'Turn sounds on'}" aria-label="${sfx.on ? 'Mute sounds' : 'Turn sounds on'}">${sfx.on ? ICON.soundOn : ICON.soundOff}</button>
@@ -208,19 +211,22 @@ function topBar() {
   </div></header>`;
 }
 
-// Invite links (/?room=CODE) only ask for a name; the code comes from the link.
-function inviteCard(code) {
-  return `<section class="card entry invite">
-    <span class="label">You’re invited to join</span>
-    <div class="invite-room">Room <b>${esc(code)}</b></div>
-    <form id="inviteForm">
-      <label for="iName">Your name</label>
-      <input id="iName" maxlength="20" required autocomplete="nickname" placeholder="e.g. Prudhvi" autofocus />
-      <button class="btn primary block" type="submit">Join room</button>
-      <div class="error" id="iErr"></div>
-    </form>
-    <p class="hint center">Not your room? <button class="link" id="noInvite" type="button">Create or join a different one</button></p>
-  </section>`;
+// Invite links (/?room=CODE) slide up a small panel that only asks for a name.
+function inviteSheet(code) {
+  return `<div class="sheet-backdrop" id="inviteSheet">
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
+      <button class="icon-btn sm sheet-close" id="noInvite" type="button" aria-label="Close">✕</button>
+      <span class="sheet-icon" aria-hidden="true">🏏</span>
+      <span class="label">You’re invited</span>
+      <h2 id="inviteTitle">Join room <b>${esc(code)}</b></h2>
+      <p class="muted small">Enter your name to join. You’ll pick your franchise in the lobby.</p>
+      <form id="inviteForm">
+        <input id="iName" maxlength="20" required autocomplete="nickname" placeholder="Your name" aria-label="Your name" />
+        <button class="btn primary block" type="submit">Join room</button>
+        <div class="error" id="iErr"></div>
+      </form>
+    </section>
+  </div>`;
 }
 
 function homeView() {
@@ -240,7 +246,7 @@ function homeView() {
         </dl>
         <div class="logo-row" aria-hidden="true">${(meta?.teams || []).map(t => badge(t)).join('')}</div>
       </section>
-      ${invite ? inviteCard(invite) : `<section class="card entry">
+      <section class="card entry">
         <div class="seg" role="tablist">
           <button role="tab" class="${homeTab === 'create' ? 'on' : ''}" aria-selected="${homeTab === 'create'}" data-tab="create">Create room</button>
           <button role="tab" class="${homeTab === 'join' ? 'on' : ''}" aria-selected="${homeTab === 'join'}" data-tab="join">Join room</button>
@@ -260,16 +266,31 @@ function homeView() {
           <button class="btn primary block" type="submit">Join room</button>
           <div class="error" id="jErr"></div>
         </form>
-      </section>`}
+      </section>
     </main>
-  </div>`;
+  </div>
+  ${invite ? inviteSheet(invite) : ''}`;
   if (invite) {
+    const sheet = document.getElementById('inviteSheet');
+    const close = () => {
+      history.replaceState(null, '', '/');
+      document.removeEventListener('keydown', onKey);
+      sheet.classList.add('closing');
+      setTimeout(() => sheet.remove(), 200);
+    };
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
     inviteForm.onsubmit = e => {
       e.preventDefault();
-      socket.emit('join', { name: iName.value, code: invite }, res => res.ok ? save(res) : (iErr.textContent = res.error));
+      socket.emit('join', { name: iName.value, code: invite }, res => {
+        if (!res.ok) return (iErr.textContent = res.error);
+        document.removeEventListener('keydown', onKey);
+        save(res);
+      });
     };
-    noInvite.onclick = () => { history.replaceState(null, '', '/'); homeTab = 'create'; homeView(); };
-    return;
+    noInvite.onclick = close;
+    sheet.onclick = e => { if (e.target === sheet) close(); };
+    setTimeout(() => iName.focus(), 250);
   }
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     homeTab = b.dataset.tab;
@@ -320,6 +341,18 @@ function lobbyView() {
         }).join('')}
       </section>
       <aside class="side">
+        <section class="card invite-card">
+          <div class="card-head"><h2>Invite friends</h2><span class="muted small">${r.maxMembers - state.members.length} spots left</span></div>
+          <div class="pad">
+            <div class="invite-link" title="${esc(inviteUrl())}">${esc(inviteUrl().replace(/^https?:\/\//, ''))}</div>
+            <div class="invite-actions">
+              <button class="btn sm primary" data-act="copy">${ICON.copy}Copy link</button>
+              <a class="btn sm" href="https://wa.me/?text=${encodeURIComponent(inviteText())}" target="_blank" rel="noopener">WhatsApp</a>
+              ${navigator.share ? `<button class="btn sm" data-act="share">${ICON.share}Share</button>` : ''}
+            </div>
+            <p class="hint">Friends who open the link just type their name to join.</p>
+          </div>
+        </section>
         <section class="card">
           <div class="card-head"><h2>Players</h2><span class="muted small">${state.members.length}/${r.maxMembers}</span></div>
           <ul class="people">
@@ -668,9 +701,10 @@ app.addEventListener('click', e => {
   const act = el.dataset.act;
   if (act === 'pick') socket.emit('pickTeam', { teamId: me()?.teamId === el.dataset.team ? null : el.dataset.team });
   else if (act === 'copy') {
-    const url = `${location.origin}/?room=${state.code}`;
+    const url = inviteUrl();
     navigator.clipboard?.writeText(url).then(() => toast('Invite link copied. Send it to your friends.'), () => toast(url));
   }
+  else if (act === 'share') navigator.share?.({ title: 'IPL Auction Room', text: 'Join my IPL auction! Tap the link and enter your name.', url: inviteUrl() }).catch(() => {});
   else if (act === 'sound') { sfx.toggle(); render(true); toast(sfx.on ? 'Sounds on' : 'Sounds off'); }
   else if (act === 'timer') socket.emit('setTimer', { seconds: Number(el.dataset.s) });
   else if (act === 'leave') { socket.emit('leave'); save(null); state = null; view = 'board'; draft = null; history.replaceState(null, '', '/'); render(true); }
