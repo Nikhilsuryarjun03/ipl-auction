@@ -4,11 +4,16 @@ const KEY = 'auction-session';
 
 let state = null;
 let session = load();
-let view = 'board';       // board | squads | xi | xi-edit
+let view = 'board';       // board | squads | xi | xi-edit | summary
 let lastKey = '';
-let meta = null;          // { teams, rules } sent on connect, used before joining a room
+let meta = null;          // { teams, rules, modes, players } sent on connect
+let catalog = new Map();  // player id -> player, from meta
 let draft = null;         // Playing XI being edited: { xi: [ids in batting order], impact }
 let homeTab = 'create';
+let boardTab = 'upcoming'; // upcoming | sold | unsold | leaders
+let showAllUpcoming = false;
+let feedFilter = 'all';   // all | chat
+const openTeams = new Set(); // teams expanded in the Teams panel
 let lastSold = '';
 let lastBid = null;
 
@@ -16,10 +21,12 @@ function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { 
 function save(s) { session = s; try { s ? localStorage.setItem(KEY, JSON.stringify(s)) : localStorage.removeItem(KEY); } catch {} }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : `₹${l} L`);
+const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
 const ROLE = { BAT: 'Batter', BOWL: 'Bowler', AR: 'All-rounder', WK: 'Wicket-keeper' };
-const SET = { 200: 'Marquee', 150: 'Capped · Set 2', 100: 'Capped · Set 3', 75: 'Capped · Set 4', 50: 'Capped · Set 5', 30: 'Uncapped' };
-const me = () => state?.members.find(m => m.id === session?.memberId);
+const ROLE_GROUPS = [['BAT', 'Batters'], ['WK', 'Wicket-keepers'], ['AR', 'All-rounders'], ['BOWL', 'Bowlers']];
+const MODE_ICON = { mega: '🏆', legendsUpgraded: '⭐', legends: '👑', mini: '⚡' };
+const P = id => catalog.get(id);
+const me =() => state?.members.find(m => m.id === session?.memberId);
 const team = id => state?.teams.find(t => t.id === id);
 const isHost = () => state && session && state.hostId === session.memberId;
 const initials = n => n.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -149,11 +156,7 @@ function playSounds(prev, s) {
   if (!prev || s.phase !== 'auction') return;
   const sameLot = s.lot && prev.lot && s.lot.id === prev.lot.id;
   if (sameLot && s.bid != null && s.bid !== prev.bid) sfx.bid();
-  if (s.result && !prev.result) return s.result.sold ? sfx.sold() : sfx.unsold();
-  if (sameLot && s.status === 'live' && !s.paused && s.timeLeft > 0 && s.timeLeft < prev.timeLeft) {
-    if (s.timeLeft <= 3) sfx.beep();
-    else if (s.timeLeft <= 5) sfx.tick();
-  }
+  if (s.result && !prev.result) s.result.sold ? sfx.sold() : sfx.unsold();
 }
 
 // ---------- socket ----------
@@ -166,11 +169,23 @@ socket.on('connect', () => {
 });
 socket.on('meta', m => {
   meta = m;
+  catalog = new Map(m.players.map(p => [p.id, p]));
   // Fill in the home screen's logo row without wiping anything typed into the forms.
   const row = document.querySelector('.logo-row');
   if (row) row.innerHTML = m.teams.map(t => badge(t)).join('');
 });
 socket.on('state', s => { const prev = state; state = s; playSounds(prev, s); celebrate(); render(); });
+// The server sends just the seconds left once a second; beep in the last few seconds.
+socket.on('tick', t => {
+  if (!state) return;
+  const prev = state.timeLeft;
+  state.timeLeft = t;
+  if (state.status === 'live' && !state.paused && t > 0 && t < prev) {
+    if (t <= 3) sfx.beep();
+    else if (t <= 5) sfx.tick();
+  }
+  updateClock();
+});
 socket.on('toast', toast);
 
 function toast(msg) {
@@ -188,10 +203,33 @@ function render(force) {
   const key = JSON.stringify(rest) + view;
   if (!force && key === lastKey) return updateClock();
   lastKey = key;
+  const ui = snapshotUI();
   if (state.phase === 'lobby') lobbyView();
   else if (state.phase === 'auction') auctionView();
   else resultsView();
+  restoreUI(ui);
   hydrateImages();
+}
+
+// Re-renders replace the page, so keep the chat draft, focus and scroll positions across them.
+function snapshotUI() {
+  const ci = document.getElementById('chatInput'), feed = document.getElementById('feed'), board = document.getElementById('boardBody');
+  return {
+    chat: ci?.value || '', focus: ci && document.activeElement === ci, sel: ci?.selectionStart ?? 0,
+    feedTop: feed?.scrollTop ?? 0, feedAtBottom: !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40,
+    boardTop: board?.scrollTop ?? 0
+  };
+}
+function restoreUI(ui) {
+  const ci = document.getElementById('chatInput');
+  if (ci) {
+    ci.value = ui.chat;
+    if (ui.focus) { ci.focus({ preventScroll: true }); ci.setSelectionRange(ui.sel, ui.sel); }
+  }
+  const feed = document.getElementById('feed');
+  if (feed) feed.scrollTop = ui.feedAtBottom ? feed.scrollHeight : ui.feedTop;
+  const board = document.getElementById('boardBody');
+  if (board) board.scrollTop = ui.boardTop;
 }
 
 const brand = `<div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Auction Room</span><span class="brand-tag">IPL</span></div>`;
@@ -238,10 +276,10 @@ function homeView() {
       <section class="intro">
         <span class="pill"><span class="live-dot"></span>Live multiplayer auction</span>
         <h1>Run your own IPL auction with friends</h1>
-        <p class="lede">Create a room, share the code, claim a franchise and bid for players in real time. The clock resets on every bid. Last paddle up wins.</p>
+        <p class="lede">Create a room, share the link, claim a franchise and bid for players in real time. Mega auction, legends or a quick mock auction. Last paddle up wins.</p>
         <dl class="facts">
-          <div><dt>Purse</dt><dd>${r ? fmt(r.purse) : '₹120 cr'}</dd></div>
-          <div><dt>Squad size</dt><dd>${r ? r.maxSquad : 25}</dd></div>
+          <div><dt>Players</dt><dd>${meta ? meta.players.length : '360+'}</dd></div>
+          <div><dt>Auction modes</dt><dd>${meta ? Object.keys(meta.modes).length : 4}</dd></div>
           <div><dt>Players / room</dt><dd>${r ? r.maxMembers : 10}</dd></div>
         </dl>
         <div class="logo-row" aria-hidden="true">${(meta?.teams || []).map(t => badge(t)).join('')}</div>
@@ -323,12 +361,15 @@ function lobbyView() {
   <main class="page">
     <div class="page-head">
       <div>
-        <h1>Choose your franchise</h1>
-        <p class="muted">Each person runs one team. Teams nobody picks sit out the auction.</p>
+        <h1>Set up the auction</h1>
+        <p class="muted">${isHost() ? 'Pick the auction mode, then everyone claims a franchise.' : 'The host picks the auction mode. Claim your franchise below.'}</p>
       </div>
-      <span class="pill">${claimed}/10 claimed</span>
     </div>
     <div class="lobby">
+      <div class="lobby-main">
+      <div class="section-head"><h2>Auction mode</h2>${isHost() ? '' : '<span class="muted small">Chosen by the host</span>'}</div>
+      ${modePicker()}
+      <div class="section-head"><h2>Choose your franchise</h2><span class="pill">${claimed}/10 claimed</span></div>
       <section class="team-grid">
         ${state.teams.map(t => {
           const taken = t.owner && t.id !== mine;
@@ -340,6 +381,7 @@ function lobbyView() {
           </button>`;
         }).join('')}
       </section>
+      </div>
       <aside class="side">
         <section class="card invite-card">
           <div class="card-head"><h2>Invite friends</h2><span class="muted small">${r.maxMembers - state.members.length} spots left</span></div>
@@ -366,6 +408,8 @@ function lobbyView() {
         <section class="card">
           <div class="card-head"><h2>Auction rules</h2></div>
           <dl class="rules">
+            <div><dt>Mode</dt><dd>${esc(meta.modes[state.mode].name)}</dd></div>
+            <div><dt>Players in pool</dt><dd>${meta.modes[state.mode].size}</dd></div>
             <div><dt>Purse</dt><dd>${fmt(r.purse)}</dd></div>
             <div><dt>Squad size</dt><dd>Up to ${r.maxSquad}</dd></div>
             <div><dt>Overseas</dt><dd>Up to ${r.maxOverseas}</dd></div>
@@ -377,9 +421,56 @@ function lobbyView() {
                ${claimed && !mine ? '<p class="hint warn">You haven’t picked a team yourself. Pick one if you want to bid.</p>' : ''}`
             : '<p class="hint center">Waiting for the host to start the auction…</p>'}
         </section>
+        ${activityCard()}
       </aside>
     </div>
   </main>`;
+}
+
+function modePicker() {
+  const host = isHost();
+  return `<section class="modes">
+    ${Object.entries(meta.modes).map(([k, m]) => `<button class="mode-card ${state.mode === k ? 'on' : ''}" data-act="mode" data-mode="${k}"
+        ${host ? '' : 'disabled'} aria-pressed="${state.mode === k}">
+      <span class="mode-icon" aria-hidden="true">${MODE_ICON[k] || '🏏'}</span>
+      <span class="mode-text">
+        <strong>${esc(m.name)}</strong>
+        <span class="mode-desc">${esc(m.desc)}</span>
+        <span class="mode-facts">${m.size} players · ${fmt(m.purse)} purse · ${m.maxSquad}-player squads</span>
+      </span>
+    </button>`).join('')}
+  </section>`;
+}
+
+// ---------- activity feed + chat ----------
+const FEED_ICON = { bid: '↑', sold: '✓', unsold: '✕', join: '+', team: '★', host: '•', info: '•' };
+function feedItem(l) {
+  const t = l.teamId && team(l.teamId);
+  const time = new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (l.kind === 'chat') {
+    return `<li class="chat ${l.memberId === session?.memberId ? 'mine' : ''}" title="${time}">
+      <span class="chat-who">${t ? badge(t, 'xs') : ''}${esc(l.name)}</span><span class="chat-msg">${esc(l.text)}</span></li>`;
+  }
+  return `<li class="ev ${l.kind}" title="${time}"><span class="ic">${FEED_ICON[l.kind] || '•'}</span>
+    ${t && (l.kind === 'bid' || l.kind === 'sold' || l.kind === 'team') ? badge(t, 'xs') : ''}<span>${esc(l.text)}</span></li>`;
+}
+
+function activityCard() {
+  const items = state.log.filter(l => feedFilter === 'all' || l.kind === 'chat');
+  const chats = state.log.filter(l => l.kind === 'chat').length;
+  return `<section class="card activity">
+    <div class="card-head"><h2>Activity</h2>
+      <div class="seg sm" role="group" aria-label="Filter activity">
+        <button class="${feedFilter === 'all' ? 'on' : ''}" data-act="feed" data-f="all">All</button>
+        <button class="${feedFilter === 'chat' ? 'on' : ''}" data-act="feed" data-f="chat">Chat${chats ? ` (${chats})` : ''}</button>
+      </div>
+    </div>
+    <ul class="feed" id="feed">${items.length ? items.map(feedItem).join('') : `<li class="empty">${feedFilter === 'chat' ? 'No messages yet. Say hi!' : 'Nothing yet.'}</li>`}</ul>
+    <form class="chat-form" id="chatForm" autocomplete="off">
+      <input id="chatInput" maxlength="200" placeholder="Message the room…" aria-label="Chat message" />
+      <button class="btn sm primary" type="submit">Send</button>
+    </form>
+  </section>`;
 }
 
 // Shown on the auction board to anyone without a team, so late joiners can still play.
@@ -408,6 +499,7 @@ function auctionView() {
   if (view === 'squads') return squadsPage(false);
   if (view === 'xi') return xiPage();
   if (view === 'xi-edit') return xiEditPage();
+  if (view === 'summary') return summaryPage();
   const lot = state.lot, lead = team(state.leader), b = bidState(), r = state.result;
   const soldTo = r?.sold && team(r.teamId);
   const bump = state.bid != null && state.bid !== lastBid;
@@ -421,7 +513,7 @@ function auctionView() {
           <div class="lot-photo">${avatar(lot, 'photo')}</div>
           <div class="lot-body">
             <div class="lot-top">
-              <span class="pill live"><span class="live-dot"></span>${state.unsoldRound ? 'Unsold round' : SET[lot.base] || 'Auction'}</span>
+              <span class="pill live"><span class="live-dot"></span>${esc(lot.set || 'Auction')}</span>
               <span class="muted small">${state.remaining} players left</span>
             </div>
             <h1 class="lot-name">${esc(lot.name)}</h1>
@@ -463,32 +555,122 @@ function auctionView() {
           </div>` : ''}
         </article>
         ` : '<article class="card empty-state">Loading next player…</article>'}
+        ${auctionBoard()}
       </section>
 
       <aside class="side">
-        <section class="card">
-          <div class="card-head"><h2>Teams</h2>
-            <div class="head-links"><button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">Playing XIs</button></div>
-          </div>
-          <ul class="purses">
-            ${state.teams.filter(t => t.owner).map(t => `<li class="${t.id === state.leader ? 'lead' : ''}" style="${teamVars(t)}">
-              ${badge(t, 'sm')}
-              <div class="p-info">
-                <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span></span><span class="money">${fmt(t.purse)}</span></div>
-                <div class="meter"><span style="width:${(t.purse / state.rules.purse) * 100}%"></span></div>
-                <div class="p-sub">${t.squad.length}/${state.rules.maxSquad} players · ${t.squad.filter(p => p.overseas).length}/${state.rules.maxOverseas} overseas</div>
-              </div>
-            </li>`).join('')}
-          </ul>
-        </section>
-        <section class="card">
-          <div class="card-head"><h2>Activity</h2></div>
-          <ul class="log">${state.log.slice().reverse().map(l => `<li class="${l.kind}">${esc(l.text)}</li>`).join('')}</ul>
-        </section>
+        ${teamsCard()}
+        ${activityCard()}
       </aside>
     </div>
   </main>`;
   updateClock();
+}
+
+// ---------- teams panel (tap a team to see its squad by role) ----------
+function squadGroups(t) {
+  if (!t.squad.length) return '<p class="sg-empty">No players bought yet.</p>';
+  return ROLE_GROUPS.map(([role, label]) => {
+    const ps = t.squad.filter(p => p.role === role).sort((a, b) => b.price - a.price);
+    return `<div class="sg">
+      <div class="sg-head"><span>${label}</span><span>${ps.length}</span></div>
+      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
+        : '<div class="sg-row none">None yet</div>'}
+    </div>`;
+  }).join('');
+}
+
+function teamsCard() {
+  const r = state.rules;
+  return `<section class="card">
+    <div class="card-head"><h2>Teams</h2>
+      <div class="head-links"><button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">Playing XIs</button></div>
+    </div>
+    <ul class="purses">
+      ${state.teams.filter(t => t.owner).map(t => {
+        const open = openTeams.has(t.id);
+        return `<li class="${t.id === state.leader ? 'lead' : ''} ${open ? 'open' : ''}" style="${teamVars(t)}">
+          <button class="p-row" data-act="tteam" data-team="${t.id}" aria-expanded="${open}">
+            ${badge(t, 'sm')}
+            <div class="p-info">
+              <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span></span><span class="money">${fmt(t.purse)}</span></div>
+              <div class="meter"><span style="width:${(t.purse / r.purse) * 100}%"></span></div>
+              <div class="p-sub">${t.squad.length}/${r.maxSquad} players · ${t.squad.filter(p => p.overseas).length}/${r.maxOverseas} overseas</div>
+            </div>
+            <span class="chev" aria-hidden="true">${ICON.back}</span>
+          </button>
+          ${open ? `<div class="squad-groups">${squadGroups(t)}</div>` : ''}
+        </li>`;
+      }).join('')}
+    </ul>
+  </section>`;
+}
+
+// ---------- auction board: upcoming / sold / unsold / leaderboard ----------
+function miniPlayer(p, right) {
+  return `<li class="mp">${avatar(p, 'sm')}
+    <span class="r-name">${esc(p.name)}<span class="r-sub">${ROLE[p.role]}${p.overseas ? ` · <span class="os-text">${esc(p.country)}</span>` : ''}</span></span>
+    ${right}</li>`;
+}
+
+function boardBody() {
+  if (boardTab === 'upcoming') {
+    if (!state.upcoming.length) return '<p class="empty">No players left in the queue.</p>';
+    let budget = showAllUpcoming ? Infinity : 30, shown = 0;
+    const html = state.upcoming.map(s => {
+      if (budget <= 0) return '';
+      const ids = s.ids.slice(0, budget); budget -= ids.length; shown += ids.length;
+      return `<div class="set-block">
+        <div class="set-head"><span class="set-name">${esc(s.name)}</span><span class="muted small">${s.ids.length} players</span></div>
+        <ul class="mp-grid">${ids.map(id => { const p = P(id); return p ? miniPlayer(p, `<b class="price">${fmt(p.base)}</b>`) : ''; }).join('')}</ul>
+      </div>`;
+    }).join('');
+    return `<p class="board-note">Players come up set by set. The order inside each set is random.</p>${html}
+      ${shown < state.remaining ? `<button class="btn sm block-sm" data-act="upall">Show all ${state.remaining} upcoming players</button>` : ''}`;
+  }
+  if (boardTab === 'sold') {
+    if (!state.sold.length) return '<p class="empty">Nobody has been sold yet.</p>';
+    return `<ul class="mp-list">${state.sold.slice().reverse().map(s => {
+      const p = P(s.id), t = team(s.teamId);
+      return p ? miniPlayer(p, `<span class="sold-to">${badge(t, 'xs')}${esc(t.id)}</span><b class="price">${fmt(s.price)}</b>`) : '';
+    }).join('')}</ul>`;
+  }
+  if (boardTab === 'unsold') {
+    if (!state.unsold.length) return '<p class="empty">No unsold players.</p>';
+    const note = state.phase === 'auction' && !state.unsoldRound ? '<p class="board-note">Unsold players come back for a second round at the end.</p>' : '';
+    return `${note}<ul class="mp-list">${state.unsold.map(id => { const p = P(id); return p ? miniPlayer(p, `<span class="muted small">Base ${fmt(p.base)}</span>`) : ''; }).join('')}</ul>`;
+  }
+  return leaderboard();
+}
+
+function leaderboard() {
+  const teams = state.teams.filter(t => t.owner);
+  if (!teams.length) return '<p class="empty">No teams yet.</p>';
+  const value = t => t.squad.reduce((s, p) => s + p.price, 0);
+  const ranked = teams.slice().sort((a, b) => value(b) - value(a) || b.squad.length - a.squad.length);
+  const top = state.sold.slice().sort((a, b) => b.price - a.price).slice(0, 5);
+  return `<table class="lb">
+      <thead><tr><th>#</th><th>Team</th><th>Players</th><th>OS</th><th>Squad value</th><th>Purse left</th></tr></thead>
+      <tbody>${ranked.map((t, i) => `<tr class="${t.id === me()?.teamId ? 'me' : ''}">
+        <td class="rank">${i + 1}</td>
+        <td><span class="lb-team">${badge(t, 'xs')}<b>${esc(t.id)}</b><span class="muted">${esc(t.owner)}</span></span></td>
+        <td>${t.squad.length}/${state.rules.maxSquad}</td>
+        <td>${t.squad.filter(p => p.overseas).length}</td>
+        <td><b>${fmt(value(t))}</b></td>
+        <td>${fmt(t.purse)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    ${top.length ? `<div class="set-head top-buys"><span class="set-name">Biggest buys</span></div>
+      <ul class="mp-list">${top.map(s => { const p = P(s.id), t = team(s.teamId); return p ? miniPlayer(p, `<span class="sold-to">${badge(t, 'xs')}${esc(t.id)}</span><b class="price">${fmt(s.price)}</b>`) : ''; }).join('')}</ul>` : ''}`;
+}
+
+function auctionBoard() {
+  const counts = { upcoming: state.remaining, sold: state.sold.length, unsold: state.unsold.length, leaders: state.teams.filter(t => t.owner).length };
+  const tab = (k, label) => `<button class="${boardTab === k ? 'on' : ''}" data-act="btab" data-b="${k}">${label}<span class="cnt">${counts[k]}</span></button>`;
+  return `<section class="card board-card">
+    <div class="board-tabs seg">${tab('upcoming', 'Upcoming')}${tab('sold', 'Sold')}${tab('unsold', 'Unsold')}${tab('leaders', 'Leaderboard')}</div>
+    <div class="board-body" id="boardBody">${boardBody()}</div>
+  </section>`;
 }
 
 function updateClock() {
@@ -506,8 +688,18 @@ function subNav() {
   const tab = (v, label) => `<button class="${cur === v ? 'on' : ''}" data-act="${v}">${label}</button>`;
   return `<nav class="subnav">
     ${state.phase === 'auction' ? `<button class="btn sm" data-act="board">${ICON.back}Back to auction</button>` : ''}
-    <div class="seg">${tab('squads', 'Squads')}${tab('xi', 'Playing XIs')}</div>
+    <div class="seg">${tab('squads', 'Squads')}${tab('xi', 'Playing XIs')}${tab('summary', 'Summary')}</div>
   </nav>`;
+}
+
+function summaryPage() {
+  app.innerHTML = `${topBar()}
+  <main class="page">
+    <div class="page-head"><div><h1>Auction summary</h1>
+      <p class="muted">${esc(meta.modes[state.mode].name)} · ${state.sold.length} sold · ${state.unsold.length} unsold${state.phase === 'auction' ? ` · ${state.remaining} to go` : ''}</p></div></div>
+    ${subNav()}
+    <div class="summary">${auctionBoard()}${activityCard()}</div>
+  </main>`;
 }
 
 const playerLine = p => `${avatar(p, 'sm')}<span class="r-name">${esc(p.name)}<span class="r-sub">${ROLE[p.role]}${p.overseas ? ' · Overseas' : ''}</span></span>`;
@@ -548,6 +740,7 @@ function squadsPage(final) {
 function resultsView() {
   if (view === 'xi') xiPage();
   else if (view === 'xi-edit') xiEditPage();
+  else if (view === 'summary') summaryPage();
   else squadsPage(true);
 }
 
@@ -708,7 +901,12 @@ app.addEventListener('click', e => {
   else if (act === 'sound') { sfx.toggle(); render(true); toast(sfx.on ? 'Sounds on' : 'Sounds off'); }
   else if (act === 'timer') socket.emit('setTimer', { seconds: Number(el.dataset.s) });
   else if (act === 'leave') { socket.emit('leave'); save(null); state = null; view = 'board'; draft = null; history.replaceState(null, '', '/'); render(true); }
-  else if (['squads', 'board', 'xi', 'xi-edit'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
+  else if (['squads', 'board', 'xi', 'xi-edit', 'summary'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
+  else if (act === 'mode') socket.emit('setMode', { mode: el.dataset.mode });
+  else if (act === 'btab') { boardTab = el.dataset.b; render(true); }
+  else if (act === 'upall') { showAllUpcoming = true; render(true); }
+  else if (act === 'feed') { feedFilter = el.dataset.f; render(true); }
+  else if (act === 'tteam') { openTeams.has(el.dataset.team) ? openTeams.delete(el.dataset.team) : openTeams.add(el.dataset.team); render(true); }
   else if (['xi-toggle', 'xi-impact', 'xi-up', 'xi-down'].includes(act)) editXI(act, Number(el.dataset.id));
   else if (act === 'xi-cancel') { view = 'xi'; draft = null; render(true); }
   else if (act === 'xi-save') {
@@ -718,6 +916,17 @@ app.addEventListener('click', e => {
     });
   }
   else socket.emit(act); // start, bid, pause, skip, end
+});
+
+// Chat
+app.addEventListener('submit', e => {
+  if (e.target.id !== 'chatForm') return;
+  e.preventDefault();
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('chat', { text });
+  input.value = '';
 });
 
 // Spacebar bids during the auction

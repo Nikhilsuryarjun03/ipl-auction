@@ -352,6 +352,97 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
 .log li.sold::before { background: var(--ok); }
 .log li.unsold::before { background: var(--live); }
 
+/* ---------- lobby: modes ---------- */
+.lobby-main { display: grid; gap: 12px; align-content: start; }
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.section-head h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.mode-card {
+  display: flex; gap: 12px; align-items: flex-start; padding: 14px; text-align: left; cursor: pointer;
+  border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); transition: border-color .15s, background .15s;
+}
+.mode-card:hover:not(:disabled) { background: var(--surface-2); }
+.mode-card.on { border-color: var(--accent); background: rgba(245,184,65,.07); box-shadow: inset 0 0 0 1px var(--accent); }
+.mode-card:disabled { cursor: default; }
+.mode-card:disabled:not(.on) { opacity: .5; }
+.mode-icon { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-size: 19px; background: var(--surface-3); }
+.mode-card.on .mode-icon { background: rgba(245,184,65,.16); }
+.mode-text { display: grid; gap: 3px; min-width: 0; }
+.mode-text strong { font-size: 15px; font-weight: 700; }
+.mode-desc { font-size: 13px; color: var(--dim); line-height: 1.4; }
+.mode-facts { font-size: 12px; font-weight: 600; color: var(--accent); margin-top: 2px; }
+
+/* ---------- activity feed + chat ---------- */
+.activity { display: flex; flex-direction: column; }
+.feed { list-style: none; margin: 0; padding: 0 12px; max-height: 340px; min-height: 120px; overflow: auto; font-size: 13px; scroll-behavior: auto; }
+.feed li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 4px; border-top: 1px solid var(--border); line-height: 1.4; }
+.feed li:first-child { border-top: 0; }
+.feed .ev { color: var(--dim); }
+.feed .ev .badge { margin-top: 0; }
+.feed .ic {
+  flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11px; font-weight: 800; background: var(--surface-3); color: var(--dim);
+}
+.feed .bid .ic { background: rgba(245,184,65,.15); color: var(--accent); }
+.feed .sold { color: var(--text); }
+.feed .sold .ic { background: rgba(34,197,94,.18); color: var(--ok); }
+.feed .unsold .ic { background: rgba(240,68,82,.15); color: var(--live); }
+.feed .join .ic { background: rgba(80,140,255,.15); color: #8FB3FF; }
+.feed .team .ic { background: rgba(245,184,65,.12); color: var(--accent); }
+.feed .host { color: #E2C98F; }
+.feed .chat { flex-direction: column; gap: 2px; padding: 7px 4px; }
+.chat-who { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #8FB3FF; }
+.chat.mine .chat-who { color: var(--accent); }
+.chat-msg { color: var(--text); font-size: 14px; word-break: break-word; }
+.feed .empty { padding: 18px 4px; justify-content: center; }
+.chat-form { display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--border); }
+.chat-form input { height: 36px; font-size: 14px; }
+.chat-form .btn { height: 36px; flex: none; }
+
+/* ---------- teams panel dropdown ---------- */
+.purses li.open { background: var(--surface-2); }
+.p-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.chev { color: var(--faint); transform: rotate(-90deg); transition: transform .2s; display: grid; }
+.chev svg { width: 16px; height: 16px; }
+.purses li.open .chev { transform: rotate(90deg); }
+.purses li { flex-direction: column; align-items: stretch; }
+.squad-groups { display: grid; gap: 10px; margin: 10px 0 2px 40px; padding-top: 10px; border-top: 1px dashed var(--border-2); }
+.sg-head { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 4px; }
+.sg-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
+.sg-row b { font-weight: 600; }
+.sg-row.none { color: var(--faint); font-size: 12px; }
+.sg-empty { font-size: 13px; color: var(--faint); }
+.os-mark { font-size: 10px; font-weight: 700; margin-left: 6px; padding: 1px 4px; border-radius: 4px; background: rgba(240,138,36,.15); color: #FFB677; vertical-align: 1px; }
+
+/* ---------- auction board ---------- */
+.board-card { overflow: hidden; }
+.board-tabs { display: flex; margin: 14px 16px 0; }
+.board-tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 6px; }
+.cnt { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--surface-3); color: var(--dim); }
+.board-tabs button.on .cnt { background: rgba(245,184,65,.18); color: var(--accent); }
+.board-body { max-height: 520px; overflow: auto; padding: 12px 16px 16px; }
+.board-note { font-size: 12px; color: var(--dim); padding: 8px 10px; border-radius: 8px; background: var(--surface-2); margin-bottom: 12px; }
+.set-block + .set-block { margin-top: 14px; }
+.set-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.set-name { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); background: rgba(245,184,65,.1); padding: 3px 9px; border-radius: 999px; }
+.mp-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.mp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.mp { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 10px; background: var(--surface-2); }
+.mp-list .mp { background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; padding: 7px 2px; }
+.os-text { color: #FFB677; }
+.sold-to { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--dim); margin-right: 8px; }
+.block-sm { width: 100%; margin-top: 12px; }
+.lb { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lb th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.lb td { padding: 9px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.lb tr.me td { background: rgba(245,184,65,.06); }
+.lb .rank { font-weight: 800; color: var(--accent); width: 28px; }
+.lb-team { display: inline-flex; align-items: center; gap: 7px; }
+.lb-team .muted { font-size: 12px; }
+.top-buys { margin-top: 18px; }
+.summary { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.summary .board-body { max-height: none; }
+
 /* ---------- squads & XIs ---------- */
 .subnav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
 .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
@@ -417,7 +508,7 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
 /* ---------- responsive ---------- */
 @media (max-width: 960px) {
   .home-main { grid-template-columns: 1fr; gap: 32px; padding-top: 8px; }
-  .lobby, .auction, .xi-editor { grid-template-columns: 1fr; }
+  .lobby, .auction, .xi-editor, .summary { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
   body { font-size: 14px; }
@@ -438,5 +529,9 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
   .host-timer { margin-left: 0; }
   .facts { gap: 18px; }
   .grid-cards { grid-template-columns: 1fr; }
+  .board-tabs { overflow-x: auto; scrollbar-width: none; margin: 12px 12px 0; }
+  .board-tabs button { flex: 1 0 auto; padding: 7px 10px; }
+  .board-body { padding: 12px; }
+  .mp-grid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

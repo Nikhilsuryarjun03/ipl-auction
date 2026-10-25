@@ -3,7 +3,7 @@ const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
-const { RULES, TEAMS, PLAYERS } = require('./data');
+const { RULES, TEAMS, PLAYERS, MODES } = require('./data');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +17,13 @@ const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : `₹${l} L`);
 const increment = l => (l < 100 ? 5 : l < 200 ? 10 : l < 500 ? 20 : 25);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const clean = (s, n = 20) => String(s || '').replace(/[<>]/g, '').trim().slice(0, n);
+const teamName = id => TEAMS.find(t => t.id === id).name;
+
+// Sent once per connection: everything the client needs that never changes during a room.
+const META = {
+  teams: TEAMS, rules: RULES, players: PLAYERS,
+  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size }]))
+};
 
 function newCode() {
   let c;
@@ -24,53 +31,88 @@ function newCode() {
   return c;
 }
 
+function rulesFor(room) {
+  const m = MODES[room.mode];
+  return { ...RULES, mode: room.mode, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, bidSeconds: room.bidSeconds };
+}
+
 function createRoom() {
   const room = {
     code: newCode(), hostId: null, phase: 'lobby', // lobby | auction | finished
-    members: new Map(), purse: {}, squads: {}, xi: {}, bidSeconds: RULES.bidSeconds,
-    queue: [], unsold: [], unsoldRound: false,
+    mode: 'mega', bidSeconds: RULES.bidSeconds,
+    members: new Map(), purse: {}, squads: {}, xi: {},
+    queue: [], unsold: [], unsoldFinal: [], unsoldRound: false, soldLog: [],
     lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | closed
     result: null, paused: false, log: [], interval: null, nextTimer: null, cleanupTimer: null
   };
-  TEAMS.forEach(t => { room.purse[t.id] = RULES.purse; room.squads[t.id] = []; room.xi[t.id] = { xi: [], impact: null }; });
+  resetTeams(room);
   rooms.set(room.code, room);
   return room;
 }
 
-function addLog(room, text, kind = 'info') {
-  room.log.push({ text, kind, t: Date.now() });
-  if (room.log.length > 60) room.log.shift();
+function resetTeams(room) {
+  TEAMS.forEach(t => { room.purse[t.id] = MODES[room.mode].purse; room.squads[t.id] = []; room.xi[t.id] = { xi: [], impact: null }; });
+}
+
+// kind: info | join | team | bid | sold | unsold | chat | host
+function addLog(room, text, kind = 'info', extra = {}) {
+  room.log.push({ text, kind, t: Date.now(), ...extra });
+  if (room.log.length > 300) room.log.shift();
+}
+
+// The remaining queue grouped into its sets, in auction order.
+function upcomingSets(room) {
+  const sets = [];
+  room.queue.forEach(p => {
+    const last = sets[sets.length - 1];
+    if (last && last.name === p.set) last.ids.push(p.id);
+    else sets.push({ name: p.set, ids: [p.id] });
+  });
+  return sets;
 }
 
 function publicState(room) {
   const owners = {};
   room.members.forEach(m => { if (m.teamId) owners[m.teamId] = m.name; });
   return {
-    code: room.code, hostId: room.hostId, phase: room.phase, rules: { ...RULES, bidSeconds: room.bidSeconds },
+    code: room.code, hostId: room.hostId, phase: room.phase, mode: room.mode, rules: rulesFor(room),
     members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
     teams: TEAMS.map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
     status: room.status, result: room.result, paused: room.paused,
     nextBid: room.lot ? (room.bid == null ? room.lot.base : room.bid + increment(room.bid)) : null,
-    remaining: room.queue.length, unsoldCount: room.unsold.length, unsoldRound: room.unsoldRound,
-    log: room.log.slice(-25)
+    remaining: room.queue.length, unsoldRound: room.unsoldRound,
+    upcoming: upcomingSets(room),
+    sold: room.soldLog,
+    unsold: [...room.unsold.map(p => p.id), ...room.unsoldFinal],
+    log: room.log.slice(-150)
   };
 }
 
 const broadcast = room => io.to(room.code).emit('state', publicState(room));
 
 // ---------- auction flow ----------
-function buildQueue() {
-  // marquee (highest base) first, shuffled within each price band
-  const bands = {};
-  PLAYERS.forEach(p => (bands[p.base] ||= []).push({ ...p }));
-  return Object.keys(bands).map(Number).sort((a, b) => b - a).flatMap(b => shuffle(bands[b]));
+const ROLE_ORDER = { BAT: 0, WK: 1, AR: 2, BOWL: 3 };
+const ROLE_SET = { BAT: 'Batters', WK: 'Wicket-keepers', AR: 'All-rounders', BOWL: 'Bowlers' };
+function setName(p) {
+  if (p.base >= 200) return 'Marquee';
+  if (p.base <= 30) return `Uncapped ${ROLE_SET[p.role]}`;
+  return `${ROLE_SET[p.role]} · ${fmt(p.base)} base`;
+}
+
+// IPL-style sets: Marquee first, then by base price and role; the order is shuffled inside each set.
+function buildQueue(pool) {
+  const sets = new Map();
+  [...pool]
+    .sort((a, b) => b.base - a.base || (a.base >= 200 ? 0 : ROLE_ORDER[a.role] - ROLE_ORDER[b.role]))
+    .forEach(p => { const s = setName(p); if (!sets.has(s)) sets.set(s, []); sets.get(s).push({ ...p, set: s }); });
+  return [...sets.values()].flatMap(shuffle);
 }
 
 function startAuction(room) {
   room.phase = 'auction';
-  room.queue = buildQueue();
-  addLog(room, `Auction started with ${room.queue.length} players.`);
+  room.queue = buildQueue(MODES[room.mode].pool());
+  addLog(room, `${MODES[room.mode].name} started with ${room.queue.length} players.`, 'host');
   room.interval = setInterval(() => tick(room), 1000);
   nextLot(room);
 }
@@ -79,8 +121,8 @@ function nextLot(room) {
   clearTimeout(room.nextTimer);
   if (!room.queue.length && room.unsold.length && !room.unsoldRound) {
     room.unsoldRound = true;
-    room.queue = room.unsold.splice(0);
-    addLog(room, `Unsold players are back for a second round.`);
+    room.queue = room.unsold.splice(0).map(p => ({ ...p, set: 'Unsold round' }));
+    addLog(room, 'Unsold players are back for a second round.', 'host');
   }
   if (!room.queue.length) return finish(room);
   room.lot = room.queue.shift();
@@ -89,11 +131,12 @@ function nextLot(room) {
   broadcast(room);
 }
 
+// The clock only sends the seconds left; everything else goes out with full state updates.
 function tick(room) {
   if (room.phase !== 'auction' || room.status !== 'live' || room.paused) return;
   room.timeLeft -= 1;
   if (room.timeLeft <= 0) closeLot(room);
-  else broadcast(room);
+  else io.to(room.code).emit('tick', room.timeLeft);
 }
 
 function closeLot(room) {
@@ -101,12 +144,14 @@ function closeLot(room) {
   if (room.leader) {
     room.squads[room.leader].push({ ...p, price: room.bid });
     room.purse[room.leader] -= room.bid;
+    room.soldLog.push({ id: p.id, teamId: room.leader, price: room.bid });
     room.result = { sold: true, teamId: room.leader, price: room.bid };
-    addLog(room, `${p.name} sold to ${TEAMS.find(t => t.id === room.leader).name} for ${fmt(room.bid)}.`, 'sold');
+    addLog(room, `${p.name} sold to ${teamName(room.leader)} for ${fmt(room.bid)}`, 'sold', { teamId: room.leader });
   } else {
-    if (!room.unsoldRound) room.unsold.push(p);
+    if (room.unsoldRound) room.unsoldFinal.push(p.id);
+    else room.unsold.push(p);
     room.result = { sold: false };
-    addLog(room, `${p.name} went unsold.`, 'unsold');
+    addLog(room, `${p.name} went unsold`, 'unsold');
   }
   room.status = 'closed'; room.timeLeft = 0;
   broadcast(room);
@@ -115,8 +160,11 @@ function closeLot(room) {
 
 function finish(room) {
   clearInterval(room.interval);
+  if (room.lot && room.status === 'live') room.unsoldFinal.push(room.lot.id);
+  room.unsoldFinal.push(...room.queue.map(p => p.id), ...room.unsold.map(p => p.id));
+  room.queue = []; room.unsold = [];
   room.phase = 'finished'; room.lot = null; room.status = 'idle';
-  addLog(room, 'Auction finished.');
+  addLog(room, 'Auction finished.', 'host');
   broadcast(room);
 }
 
@@ -136,11 +184,12 @@ function canBid(room, teamId) {
   if (room.phase !== 'auction' || room.status !== 'live' || room.paused) return 'Bidding is closed right now.';
   if (!teamId) return 'Pick a team to bid.';
   if (room.leader === teamId) return 'You already hold the top bid.';
+  const rules = rulesFor(room);
   const amount = room.bid == null ? room.lot.base : room.bid + increment(room.bid);
   const squad = room.squads[teamId];
   if (room.purse[teamId] < amount) return 'Not enough left in your purse.';
-  if (squad.length >= RULES.maxSquad) return 'Your squad is full.';
-  if (room.lot.overseas && squad.filter(p => p.overseas).length >= RULES.maxOverseas) return 'Overseas limit reached.';
+  if (squad.length >= rules.maxSquad) return 'Your squad is full.';
+  if (room.lot.overseas && squad.filter(p => p.overseas).length >= rules.maxOverseas) return 'Overseas limit reached.';
   return null;
 }
 
@@ -149,7 +198,7 @@ io.on('connection', socket => {
   const room = () => rooms.get(socket.data.code);
   const member = () => room()?.members.get(socket.data.memberId);
   const isHost = () => room() && room().hostId === socket.data.memberId;
-  socket.emit('meta', { teams: TEAMS, rules: RULES });
+  socket.emit('meta', META);
 
   function enter(r, m, cb) {
     m.online = true; m.socketId = socket.id;
@@ -165,6 +214,7 @@ io.on('connection', socket => {
     const r = createRoom();
     const m = { id: crypto.randomUUID(), name, teamId: null };
     r.members.set(m.id, m); r.hostId = m.id;
+    addLog(r, `${name} created the room`, 'join', { name });
     enter(r, m, cb);
   });
 
@@ -175,7 +225,7 @@ io.on('connection', socket => {
     if (r.members.size >= RULES.maxMembers) return cb?.({ ok: false, error: `This room is full (max ${RULES.maxMembers} players).` });
     const m = { id: crypto.randomUUID(), name, teamId: null };
     r.members.set(m.id, m);
-    addLog(r, `${name} joined.`);
+    addLog(r, `${name} joined the room`, 'join', { name });
     enter(r, m, cb);
   });
 
@@ -190,13 +240,22 @@ io.on('connection', socket => {
     if (r.phase === 'finished') return;
     if (teamId === null) {
       if (r.phase !== 'lobby') return socket.emit('toast', 'Teams are locked once the auction starts.');
+      if (m.teamId) addLog(r, `${m.name} released ${teamName(m.teamId)}`, 'team', { name: m.name });
       m.teamId = null; return broadcast(r);
     }
     if (!TEAMS.some(t => t.id === teamId)) return;
     if ([...r.members.values()].some(x => x.teamId === teamId && x.id !== m.id)) return socket.emit('toast', 'That team is taken.');
     if (r.phase !== 'lobby' && m.teamId) return socket.emit('toast', 'Teams are locked once the auction starts.');
     m.teamId = teamId;
-    if (r.phase === 'auction') addLog(r, `${m.name} joined the auction as ${TEAMS.find(t => t.id === teamId).name}.`);
+    addLog(r, r.phase === 'auction' ? `${m.name} joined the auction as ${teamName(teamId)}` : `${m.name} picked ${teamName(teamId)}`, 'team', { name: m.name, teamId });
+    broadcast(r);
+  });
+
+  socket.on('setMode', ({ mode } = {}) => {
+    const r = room(); if (!r || !isHost() || r.phase !== 'lobby' || !MODES[mode] || mode === r.mode) return;
+    r.mode = mode;
+    resetTeams(r);
+    addLog(r, `Auction mode set to ${MODES[mode].name}`, 'host');
     broadcast(r);
   });
 
@@ -211,6 +270,18 @@ io.on('connection', socket => {
     const err = canBid(r, m.teamId); if (err) return socket.emit('toast', err);
     r.bid = r.bid == null ? r.lot.base : r.bid + increment(r.bid);
     r.leader = m.teamId; r.timeLeft = r.bidSeconds;
+    addLog(r, `${m.teamId} bid ${fmt(r.bid)} for ${r.lot.name}`, 'bid', { teamId: m.teamId, name: m.name });
+    broadcast(r);
+  });
+
+  socket.on('chat', ({ text } = {}) => {
+    const r = room(), m = member(); if (!r || !m) return;
+    text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!text) return;
+    const now = Date.now();
+    if (now - (m.lastChat || 0) < 700) return socket.emit('toast', 'Slow down a little.');
+    m.lastChat = now;
+    addLog(r, text, 'chat', { name: m.name, teamId: m.teamId, memberId: m.id });
     broadcast(r);
   });
 
@@ -222,7 +293,7 @@ io.on('connection', socket => {
     const err = checkXI(r.squads[m.teamId], xi, impact);
     if (err) return cb?.({ ok: false, error: err });
     r.xi[m.teamId] = { xi, impact };
-    addLog(r, `${TEAMS.find(t => t.id === m.teamId).name} announced their Playing XI.`);
+    addLog(r, `${teamName(m.teamId)} announced their Playing XI`, 'team', { teamId: m.teamId });
     broadcast(r);
     cb?.({ ok: true });
   });
@@ -233,19 +304,31 @@ io.on('connection', socket => {
     if (!RULES.timerOptions.includes(s) || s === r.bidSeconds) return;
     r.bidSeconds = s;
     if (r.status === 'live' && r.timeLeft > s) r.timeLeft = s;
-    addLog(r, `Bid timer set to ${s} seconds.`);
+    addLog(r, `Bid timer set to ${s} seconds`, 'host');
     broadcast(r);
   });
 
-  socket.on('pause', () => { const r = room(); if (r && isHost() && r.phase === 'auction') { r.paused = !r.paused; addLog(r, r.paused ? 'Auction paused.' : 'Auction resumed.'); broadcast(r); } });
-  socket.on('skip',  () => { const r = room(); if (r && isHost() && r.status === 'live') closeLot(r); });
-  socket.on('end',   () => { const r = room(); if (r && isHost() && r.phase === 'auction') { clearTimeout(r.nextTimer); finish(r); } });
+  socket.on('pause', () => {
+    const r = room(); if (!r || !isHost() || r.phase !== 'auction') return;
+    r.paused = !r.paused;
+    addLog(r, r.paused ? 'Auction paused by the host' : 'Auction resumed', 'host');
+    broadcast(r);
+  });
+  socket.on('skip', () => { const r = room(); if (r && isHost() && r.status === 'live') closeLot(r); });
+  socket.on('end', () => {
+    const r = room(); if (!r || !isHost() || r.phase !== 'auction') return;
+    clearTimeout(r.nextTimer); finish(r);
+  });
 
   socket.on('leave', () => {
     const r = room(), m = member(); if (!r || !m) return;
     socket.leave(r.code);
-    if (r.phase === 'lobby') { r.members.delete(m.id); addLog(r, `${m.name} left.`); } else m.online = false;
-    if (r.hostId === m.id) { const next = [...r.members.values()].find(x => x.online); if (next) r.hostId = next.id; }
+    addLog(r, `${m.name} left the room`, 'join', { name: m.name });
+    if (r.phase === 'lobby') r.members.delete(m.id); else m.online = false;
+    if (r.hostId === m.id) {
+      const next = [...r.members.values()].find(x => x.online);
+      if (next) { r.hostId = next.id; addLog(r, `${next.name} is now the host`, 'host'); }
+    }
     socket.data = {}; broadcast(r);
   });
 
