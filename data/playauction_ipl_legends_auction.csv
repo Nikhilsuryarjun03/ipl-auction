@@ -1,0 +1,185 @@
+﻿order,id,name,role,basePrice,country,isCapped,isOverseas,set,stat_matches,stat_runs,stat_average,stat_strikeRate,stat_fifties,stat_hundreds,stat_wickets,stat_economy,stat_bestFigures,stat_fiveWickets
+1,LEG007,KL Rahul,Wicket-Keeper,250,India,true,false,MEGA,145,5222,46.21,136.02,40,5,,,,
+2,LEG009,AM Rahane,Batsman,250,India,true,false,MEGA,198,5032,30.49,125.01,33,2,,,,
+3,LEG005,SK Raina,Batsman,300,India,true,false,MEGA,205,5528,32.51,136.73,39,1,,,,
+4,LEG010,CH Gayle,Batsman,250,West Indies,true,true,MEGA,142,4965,39.72,148.96,31,6,,,,
+5,LEG102,B Kumar,Bowler,300,India,true,false,MEGA,190,,27.33,,,,198,7.69,5/19,2
+6,LEG004,DA Warner,Batsman,300,Australia,true,true,MEGA,184,6565,40.52,139.77,62,4,,,,
+7,LEG107,SL Malinga,Bowler,250,Sri Lanka,true,true,MEGA,122,,19.79,,,,170,7.14,5/13,6
+8,LEG001,V Kohli,Batsman,300,India,true,false,MEGA,267,8661,39.54,132.85,63,8,,,,
+9,LEG103,PP Chawla,Bowler,300,India,true,false,MEGA,192,,26.6,,,,192,7.96,4/17,2
+10,LEG101,YS Chahal,Bowler,300,India,true,false,MEGA,174,,22.76,,,,221,7.96,5/40,8
+11,LEG106,A Mishra,Bowler,250,India,true,false,MEGA,162,,23.82,,,,174,7.37,5/17,4
+12,LEG104,R Ashwin,Bowler,300,India,true,false,MEGA,221,,30.22,,,,187,7.2,4/34,1
+13,LEG003,S Dhawan,Batsman,300,India,true,false,MEGA,222,6769,35.25,127.14,51,2,,,,
+14,LEG008,AB de Villiers,Batsman,250,South Africa,true,true,MEGA,184,5162,39.7,151.68,40,3,,,,
+15,LEG002,RG Sharma,Batsman,300,India,true,false,MEGA,272,7046,29.73,132.09,47,2,,,,
+16,LEG006,MS Dhoni,Wicket-Keeper,250,India,true,false,MEGA,278,5439,38.3,137.45,24,0,,,,
+17,LEG105,JJ Bumrah,Bowler,250,India,true,false,MEGA,145,,22.02,,,,183,7.24,5/10,3
+18,LEG016,SA Yadav,Batsman,200,India,true,false,ELITE_BAT,166,4311,35.04,148.65,29,2,,,,
+19,LEG021,Shubman Gill,Batsman,180,India,true,false,ELITE_BAT,118,3866,39.44,138.71,26,4,,,,
+20,LEG015,AT Rayudu,Batsman,200,India,true,false,ELITE_BAT,204,4348,28.23,127.54,22,1,,,,
+21,LEG017,G Gambhir,Batsman,200,India,true,false,ELITE_BAT,154,4217,31,123.88,36,0,,,,
+22,LEG028,DA Miller,Batsman,180,South Africa,true,true,ELITE_BAT,141,3077,35.77,138.6,13,1,,,,
+23,LEG013,F du Plessis,Batsman,200,South Africa,true,true,ELITE_BAT,154,4773,35.09,135.78,39,0,,,,
+24,LEG022,SS Iyer,Batsman,180,India,true,false,ELITE_BAT,133,3731,34.22,133.34,27,0,,,,
+25,LEG019,MK Pandey,Batsman,200,India,true,false,ELITE_BAT,174,3942,29.41,121.51,22,1,,,,
+26,LEG011,RV Uthappa,Batsman,200,India,true,false,ELITE_BAT,205,4952,27.51,130.35,27,0,,,,
+27,LEG018,JC Buttler,Wicket-Keeper,200,England,true,true,ELITE_WK,121,4120,40,149.38,24,7,,,,
+28,LEG030,WP Saha,Wicket-Keeper,180,India,true,false,ELITE_WK,170,2934,24.24,127.56,13,1,,,,
+29,LEG012,KD Karthik,Wicket-Keeper,200,India,true,false,ELITE_WK,257,4842,26.31,135.36,22,0,,,,
+30,LEG023,RR Pant,Wicket-Keeper,180,India,true,false,ELITE_WK,125,3553,34.16,147.61,19,2,,,,
+31,LEG025,Q de Kock,Wicket-Keeper,180,South Africa,true,true,ELITE_WK,115,3309,30.63,134.02,24,2,,,,
+32,LEG029,Ishan Kishan,Wicket-Keeper,180,India,true,false,ELITE_WK,119,2998,29.1,137.64,17,1,,,,
+33,LEG014,SV Samson,Wicket-Keeper,200,India,true,false,ELITE_WK,177,4704,30.94,139.04,26,3,,,,
+34,LEG027,YK Pathan,All-Rounder,180,India,true,false,ELITE_AR,174,3204,29.12,142.97,13,1,42,7.4,3/20,0
+35,LEG024,KA Pollard,All-Rounder,180,West Indies,true,true,ELITE_AR,189,3412,28.67,147.32,16,0,69,8.79,4/44,1
+36,LEG020,SR Watson,All-Rounder,200,Australia,true,true,ELITE_AR,145,3874,30.99,137.91,21,4,92,7.93,4/29,1
+37,LEG026,RA Jadeja,All-Rounder,180,India,true,false,ELITE_AR,254,3260,27.86,130.29,5,0,170,7.67,5/16,3
+38,LEG056,MEK Hussey,Batsman,120,Australia,true,true,STAR_BAT,59,1977,38.76,122.64,15,1,,,,
+39,LEG085,CA Lynn,Batsman,100,Australia,true,true,STAR_BAT,42,1329,34.07,140.63,10,0,,,,
+40,LEG050,YBK Jaiswal,Batsman,150,India,true,false,STAR_BAT,67,2166,34.38,152.85,15,2,,,,
+41,LEG068,KK Nair,Batsman,120,India,true,false,STAR_BAT,84,1694,23.85,131.72,11,0,,,,
+42,LEG083,BJ Hodge,Batsman,100,Australia,true,true,STAR_BAT,66,1400,33.33,125.22,6,0,,,,
+43,LEG084,SC Ganguly,Batsman,100,India,true,false,STAR_BAT,59,1349,25.45,106.8,7,0,,,,
+44,LEG071,R Parag,Batsman,100,India,true,false,STAR_BAT,84,1566,26.1,141.84,7,0,,,,
+45,LEG060,Abhishek Sharma,Batsman,120,India,true,false,STAR_BAT,77,1816,27.1,163.01,9,1,,,,
+46,LEG053,AC Gilchrist,Wicket-Keeper,120,Australia,true,true,STAR_BAT,80,2069,27.22,138.39,11,2,,,,
+47,LEG058,PP Shaw,Batsman,120,India,true,false,STAR_BAT,79,1892,23.94,147.46,14,0,,,,
+48,LEG051,KS Williamson,Batsman,120,New Zealand,true,true,STAR_BAT,79,2128,35.46,125.61,18,0,,,,
+49,LEG059,S Dube,Batsman,120,India,true,false,STAR_BAT,79,1859,30.47,143.66,10,0,,,,
+50,LEG074,NT Tilak Varma,Batsman,100,India,true,false,STAR_BAT,54,1499,37.47,144.41,8,0,,,,
+51,LEG078,H Klaasen,Wicket-Keeper,100,South Africa,true,true,STAR_BAT,49,1480,40,169.72,7,2,,,,
+52,LEG041,RD Gaikwad,Batsman,150,India,true,false,STAR_BAT,71,2502,40.35,137.47,20,2,,,,
+53,LEG032,N Rana,Batsman,150,India,true,false,STAR_BAT,118,2853,27.97,136.76,20,0,,,,
+54,LEG052,AJ Finch,Batsman,120,Australia,true,true,STAR_BAT,92,2091,25.19,128.2,15,0,,,,
+55,LEG079,VR Iyer,Batsman,100,India,true,false,STAR_BAT,62,1468,29.95,137.32,12,1,,,,
+56,LEG061,D Padikkal,Batsman,120,India,true,false,STAR_BAT,74,1806,25.43,126.29,11,1,,,,
+57,LEG038,V Sehwag,Batsman,150,India,true,false,STAR_BAT,104,2728,27.55,155.44,16,2,,,,
+58,LEG043,SE Marsh,Batsman,150,Australia,true,true,STAR_BAT,71,2477,39.95,132.74,20,1,,,,
+59,LEG067,MK Tiwary,Batsman,120,India,true,false,STAR_BAT,98,1695,28.72,116.97,7,0,,,,
+60,LEG049,R Dravid,Batsman,150,India,true,false,STAR_BAT,89,2174,28.23,115.51,11,0,,,,
+61,LEG076,SS Tiwary,Batsman,100,India,true,false,STAR_BAT,93,1494,28.73,120.09,8,0,,,,
+62,LEG062,DPMD Jayawardene,Wicket-Keeper,120,Sri Lanka,true,true,STAR_BAT,80,1802,28.6,123.25,10,1,,,,
+63,LEG042,SPD Smith,Batsman,150,Australia,true,true,STAR_BAT,103,2485,34.51,128.09,11,1,,,,
+64,LEG033,PA Patel,Wicket-Keeper,150,India,true,false,STAR_BAT,139,2848,22.6,120.78,13,0,,,,
+65,LEG031,BB McCullum,Batsman,150,New Zealand,true,true,STAR_BAT,109,2880,27.69,131.74,13,2,,,,
+66,LEG063,B Sai Sudharsan,Batsman,120,India,true,false,STAR_BAT,40,1793,49.8,145.89,12,2,,,,
+67,LEG082,EJG Morgan,Batsman,100,England,true,true,STAR_BAT,83,1405,22.66,122.6,5,0,,,,
+68,LEG073,NV Ojha,Wicket-Keeper,100,India,true,false,STAR_BAT,113,1554,20.72,118.35,6,0,,,,
+69,LEG036,Yuvraj Singh,Batsman,150,India,true,false,STAR_BAT,132,2750,24.77,129.71,13,0,,,,
+70,LEG080,S Badrinath,Batsman,100,India,true,false,STAR_BAT,95,1441,30.65,118.89,11,0,,,,
+71,LEG045,DR Smith,Batsman,150,West Indies,true,true,STAR_BAT,91,2385,28.39,135.2,17,0,,,,
+72,LEG077,SO Hetmyer,Batsman,100,West Indies,true,true,STAR_BAT,86,1482,29.05,151.84,5,0,,,,
+73,LEG070,JM Bairstow,Wicket-Keeper,120,England,true,true,STAR_BAT,52,1674,34.87,146.07,9,2,,,,
+74,LEG046,SR Tendulkar,Batsman,150,India,true,false,STAR_BAT,78,2334,34.83,119.81,13,1,,,,
+75,LEG035,MA Agarwal,Batsman,150,India,true,false,STAR_BAT,131,2756,22.96,133.52,13,1,,,,
+76,LEG066,Mandeep Singh,Batsman,120,India,true,false,STAR_BAT,111,1706,20.8,122.91,6,0,,,,
+77,LEG054,JP Duminy,Batsman,120,South Africa,true,true,STAR_BAT,83,2029,39.78,124.02,14,0,,,,
+78,LEG075,DJ Hooda,Batsman,100,India,true,false,STAR_BAT,125,1496,17.6,127.64,8,0,,,,
+79,LEG047,N Pooran,Wicket-Keeper,150,West Indies,true,true,STAR_BAT,90,2293,34.22,168.97,14,0,,,,
+80,LEG081,AK Markram,Batsman,100,South Africa,true,true,STAR_BAT,57,1440,31.3,135.08,10,0,,,,
+81,LEG069,KC Sangakkara,Wicket-Keeper,120,Sri Lanka,true,true,STAR_BAT,71,1687,25.95,121.19,10,0,,,,
+82,LEG040,M Vijay,Batsman,150,India,true,false,STAR_BAT,106,2619,25.93,121.87,13,2,,,,
+83,LEG048,RA Tripathi,Batsman,150,India,true,false,STAR_BAT,100,2291,26.33,137.84,12,0,,,,
+84,LEG094,IK Pathan,All-Rounder,80,India,true,false,STAR_AR,103,1139,21.49,120.4,1,0,80,7.77,3/24,0
+85,LEG057,AR Patel,All-Rounder,120,India,true,false,STAR_AR,162,1916,22.02,133.98,3,0,128,7.34,4/21,1
+86,LEG039,AD Russell,All-Rounder,150,West Indies,true,true,STAR_AR,140,2651,28.2,174.17,12,0,123,9.51,5/15,2
+87,LEG091,MM Ali,All-Rounder,80,England,true,true,STAR_AR,73,1167,22.01,139.76,6,0,41,7.22,4/26,1
+88,LEG065,KH Pandya,All-Rounder,120,India,true,false,STAR_AR,142,1756,22.22,132.42,2,0,93,7.46,4/45,1
+89,LEG037,HH Pandya,All-Rounder,150,India,true,false,STAR_AR,152,2749,28.34,146.92,10,0,78,9.18,5/36,0
+90,LEG044,JH Kallis,All-Rounder,150,South Africa,true,true,STAR_AR,98,2427,28.55,109.22,17,0,65,7.89,3/13,0
+91,LEG034,GJ Maxwell,All-Rounder,150,Australia,true,true,STAR_AR,141,2819,23.88,155.14,18,0,41,8.29,2/15,0
+92,LEG100,DP Conway,Wicket-Keeper,80,New Zealand,true,true,STAR_AR,29,1080,43.2,139.71,11,0,,,,
+93,LEG055,MP Stoinis,All-Rounder,120,Australia,true,true,STAR_AR,109,2026,28.13,144.71,9,1,44,9.79,4/15,1
+94,LEG072,DJ Bravo,All-Rounder,100,West Indies,true,true,STAR_AR,161,1560,22.6,129.56,5,0,183,8.38,4/22,2
+95,LEG064,SP Narine,All-Rounder,120,West Indies,true,true,STAR_AR,189,1780,17.62,166.51,7,1,192,6.79,5/19,7
+96,LEG093,TM Head,Batsman,80,Australia,true,true,CLASSIC_BAT,38,1146,34.72,170.02,8,1,,,,
+97,LEG090,KM Jadhav,Batsman,80,India,true,false,CLASSIC_BAT,95,1208,22.37,123.13,4,0,,,,
+98,LEG095,R Tewatia,Batsman,80,India,true,false,CLASSIC_BAT,108,1112,23.16,137.11,1,0,,,,
+99,LEG098,RK Singh,Batsman,80,India,true,false,CLASSIC_BAT,59,1099,30.52,145.17,4,0,,,,
+100,LEG086,DJ Hussey,Batsman,80,Australia,true,true,CLASSIC_BAT,64,1322,26.97,122.97,5,0,,,,
+101,LEG088,MR Marsh,Batsman,80,Australia,true,true,CLASSIC_BAT,55,1292,27.48,142.92,9,1,,,,
+102,LEG087,Prabhsimran Singh,Batsman,80,India,true,false,CLASSIC_BAT,51,1305,25.58,151.92,7,1,,,,
+103,LEG097,ML Hayden,Batsman,80,Australia,true,true,CLASSIC_BAT,32,1107,36.9,137.51,8,0,,,,
+104,LEG099,M Vohra,Batsman,80,India,true,false,CLASSIC_BAT,56,1083,22.1,130.63,3,0,,,,
+105,LEG096,RM Patidar,Batsman,80,India,true,false,CLASSIC_BAT,42,1111,30.86,154.3,9,1,,,,
+106,LEG089,V Shankar,Batsman,80,India,true,false,CLASSIC_BAT,78,1233,26.23,129.78,7,0,,,,
+107,LEG092,TM Dilshan,Batsman,80,Sri Lanka,true,true,CLASSIC_BAT,52,1153,26.81,114.49,9,0,,,,
+108,LEG124,CV Varun,Bowler,180,India,true,false,ELITE_BOWL,84,,23.85,,,,100,7.57,5/20,1
+109,LEG116,K Rabada,Bowler,180,South Africa,true,true,ELITE_BOWL,84,,22.95,,,,119,8.61,4/21,6
+110,LEG113,TA Boult,Bowler,200,New Zealand,true,true,ELITE_BOWL,120,,26.2,,,,143,8.37,4/18,2
+111,LEG115,Mohammed Shami,Bowler,200,India,true,false,ELITE_BOWL,119,,28.18,,,,133,8.63,4/11,2
+112,LEG122,Z Khan,Bowler,180,India,true,false,ELITE_BOWL,100,,27.27,,,,102,7.58,4/17,1
+113,LEG125,DW Steyn,Bowler,180,South Africa,true,true,ELITE_BOWL,95,,25.85,,,,97,6.91,3/8,0
+114,LEG108,Rashid Khan,Bowler,200,Afghanistan,true,true,ELITE_BOWL,136,,23.83,,,,158,7.08,4/24,2
+115,LEG121,R Vinay Kumar,Bowler,180,India,true,false,ELITE_BOWL,105,,28.24,,,,105,8.38,4/40,1
+116,LEG112,UT Yadav,Bowler,200,India,true,false,ELITE_BOWL,148,,29.97,,,,144,8.49,4/23,3
+117,LEG123,Kuldeep Yadav,Bowler,180,India,true,false,ELITE_BOWL,98,,26.95,,,,102,8.03,4/14,4
+118,LEG119,SN Thakur,Bowler,180,India,true,false,ELITE_BOWL,105,,30.31,,,,107,9.4,4/34,2
+119,LEG110,Harbhajan Singh,Bowler,200,India,true,false,ELITE_BOWL,163,,26.86,,,,150,7.07,5/18,1
+120,LEG111,Sandeep Sharma,Bowler,200,India,true,false,ELITE_BOWL,137,,27.87,,,,146,8.03,5/18,2
+121,LEG109,HV Patel,Bowler,200,India,true,false,ELITE_BOWL,119,,23.7,,,,151,8.85,5/27,4
+122,LEG114,MM Sharma,Bowler,200,India,true,false,ELITE_BOWL,120,,26.21,,,,134,8.77,5/10,3
+123,LEG117,JD Unadkat,Bowler,180,India,true,false,ELITE_BOWL,112,,30.58,,,,110,8.87,5/25,0
+124,LEG120,A Nehra,Bowler,180,India,true,false,ELITE_BOWL,88,,23.53,,,,106,7.84,4/10,1
+125,LEG118,Mohammed Siraj,Bowler,180,India,true,false,ELITE_BOWL,108,,30.72,,,,109,8.73,4/17,3
+126,LEG148,AB Dinda,Bowler,120,India,true,false,STAR_BOWL,78,,30.04,,,,69,8.2,4/18,1
+127,LEG132,KK Ahmed,Bowler,150,India,true,false,STAR_BOWL,71,,26.15,,,,89,8.97,3/21,0
+128,LEG126,Arshdeep Singh,Bowler,150,India,true,false,STAR_BOWL,82,,26.49,,,,97,8.99,5/32,2
+129,LEG131,PP Ojha,Bowler,150,India,true,false,STAR_BOWL,92,,26.2,,,,89,7.36,3/11,0
+130,LEG153,M Muralidaran,Bowler,120,Sri Lanka,true,true,STAR_BOWL,66,,26.92,,,,63,6.67,3/11,0
+131,LEG140,M Morkel,Bowler,150,South Africa,true,true,STAR_BOWL,70,,27.12,,,,77,7.69,4/20,1
+132,LEG164,S Gopal,Bowler,100,India,true,false,STAR_BOWL,52,,25.94,,,,52,8.16,4/16,1
+133,LEG142,RD Chahar,Bowler,120,India,true,false,STAR_BOWL,79,,28.66,,,,75,7.72,4/27,1
+134,LEG154,Shakib Al Hasan,Bowler,120,Bangladesh,true,true,STAR_BOWL,71,,29.19,,,,63,7.43,3/17,0
+135,LEG160,S Kaul,Bowler,100,India,true,false,STAR_BOWL,55,,29.98,,,,58,8.63,4/29,1
+136,LEG130,RP Singh,Bowler,150,India,true,false,STAR_BOWL,82,,25.97,,,,90,7.9,4/22,2
+137,LEG133,DL Chahar,Bowler,150,India,true,false,STAR_BOWL,95,,29.51,,,,88,8.13,4/13,2
+138,LEG155,MG Johnson,Bowler,120,Australia,true,true,STAR_BOWL,54,,27.9,,,,61,8.28,3/26,0
+139,LEG146,R Bhatia,Bowler,120,India,true,false,STAR_BOWL,95,,28.45,,,,71,7.4,4/15,1
+140,LEG169,Noor Ahmad,Bowler,100,Afghanistan,true,true,STAR_BOWL,37,,22.22,,,,48,8.08,4/18,2
+141,LEG151,Mustafizur Rahman,Bowler,120,Bangladesh,true,true,STAR_BOWL,60,,28.44,,,,65,8.13,4/29,1
+142,LEG138,Imran Tahir,Bowler,150,South Africa,true,true,STAR_BOWL,59,,20.76,,,,82,7.76,4/12,3
+143,LEG158,JP Faulkner,Bowler,120,Australia,true,true,STAR_BOWL,60,,30.13,,,,59,8.69,5/16,0
+144,LEG135,DS Kulkarni,Bowler,150,India,true,false,STAR_BOWL,92,,28.76,,,,86,8.3,4/14,1
+145,LEG171,TG Southee,Bowler,100,New Zealand,true,true,STAR_BOWL,54,,37.06,,,,47,8.66,3/20,0
+146,LEG134,Avesh Khan,Bowler,150,India,true,false,STAR_BOWL,76,,28.28,,,,87,9.12,4/24,1
+147,LEG143,MM Patel,Bowler,120,India,true,false,STAR_BOWL,63,,22.94,,,,74,7.51,5/21,2
+148,LEG163,JO Holder,Bowler,100,West Indies,true,true,STAR_BOWL,46,,27.56,,,,53,8.81,4/52,1
+149,LEG161,SK Warne,Bowler,100,Australia,true,true,STAR_BOWL,55,,25.38,,,,57,7.27,4/21,1
+150,LEG139,PJ Cummins,Bowler,150,Australia,true,true,STAR_BOWL,72,,30.03,,,,79,8.8,4/34,1
+151,LEG136,JA Morkel,Bowler,150,South Africa,true,true,STAR_BOWL,91,,27.7,,,,85,8.2,4/32,1
+152,LEG174,A Kumble,Bowler,100,India,true,false,STAR_BOWL,42,,23.51,,,,45,6.57,5/5,2
+153,LEG172,M Pathirana,Bowler,100,Sri Lanka,true,true,STAR_BOWL,32,,21.61,,,,47,8.68,4/28,1
+154,LEG129,P Kumar,Bowler,150,India,true,false,STAR_BOWL,119,,36.12,,,,90,7.72,3/18,0
+155,LEG165,LH Ferguson,Bowler,100,New Zealand,true,true,STAR_BOWL,49,,30,,,,51,8.97,4/28,1
+156,LEG150,SK Trivedi,Bowler,120,India,true,false,STAR_BOWL,76,,29.29,,,,65,7.58,4/25,1
+157,LEG147,MJ McClenaghan,Bowler,120,New Zealand,true,true,STAR_BOWL,56,,25.39,,,,71,8.49,4/21,1
+158,LEG157,JC Archer,Bowler,120,England,true,true,STAR_BOWL,52,,27.15,,,,59,7.89,3/15,0
+159,LEG145,Ravi Bishnoi,Bowler,120,India,true,false,STAR_BOWL,77,,31.06,,,,72,8.21,3/24,0
+160,LEG167,S Nadeem,Bowler,100,India,true,false,STAR_BOWL,72,,37.16,,,,48,7.56,3/16,0
+161,LEG170,SB Jakati,Bowler,100,India,true,false,STAR_BOWL,59,,30.87,,,,47,8.02,4/22,2
+162,LEG168,NM Coulter-Nile,Bowler,100,Australia,true,true,STAR_BOWL,39,,22.91,,,,48,7.7,4/14,2
+163,LEG173,PW Hasaranga,Bowler,100,Sri Lanka,true,true,STAR_BOWL,37,,24.32,,,,46,8.41,5/18,2
+164,LEG144,M Prasidh Krishna,Bowler,120,India,true,false,STAR_BOWL,66,,29.6,,,,74,8.76,4/30,2
+165,LEG149,T Natarajan,Bowler,120,India,true,false,STAR_BOWL,63,,30.11,,,,67,8.93,4/19,1
+166,LEG127,I Sharma,Bowler,150,India,true,false,STAR_BOWL,117,,35.17,,,,96,8.37,5/12,0
+167,LEG159,SM Curran,Bowler,120,England,true,true,STAR_BOWL,64,,34.45,,,,59,9.73,4/11,1
+168,LEG141,L Balaji,Bowler,150,India,true,false,STAR_BOWL,73,,26.68,,,,76,8.04,5/24,3
+169,LEG156,A Nortje,Bowler,120,South Africa,true,true,STAR_BOWL,48,,27.16,,,,61,9.07,3/33,0
+170,LEG137,KV Sharma,Bowler,150,India,true,false,STAR_BOWL,90,,26.68,,,,83,8.38,4/16,2
+171,LEG152,MA Starc,Bowler,120,Australia,true,true,STAR_BOWL,52,,23.12,,,,65,8.61,5/35,2
+172,LEG128,CH Morris,Bowler,150,South Africa,true,true,STAR_BOWL,81,,24.15,,,,95,8,4/23,4
+173,LEG166,TU Deshpande,Bowler,100,India,true,false,STAR_BOWL,46,,31.03,,,,51,9.84,4/27,1
+174,LEG162,JR Hazlewood,Bowler,100,Australia,true,true,STAR_BOWL,39,,20.98,,,,57,8.27,4/25,2
+175,LEG182,Iqbal Abdulla,Bowler,80,India,true,false,CLASSIC_BOWL,49,,27.72,,,,40,7.23,3/24,0
+176,LEG179,AJ Tye,Bowler,80,Australia,true,true,CLASSIC_BOWL,30,,23.3,,,,42,8.58,5/17,3
+177,LEG175,RJ Harris,Bowler,80,Australia,true,true,CLASSIC_BOWL,37,,23.26,,,,45,7.55,4/34,1
+178,LEG183,S Sreesanth,Bowler,80,India,true,false,CLASSIC_BOWL,44,,29.75,,,,40,8.11,3/29,0
+179,LEG180,Yash Dayal,Bowler,80,India,true,false,CLASSIC_BOWL,43,,33.9,,,,41,9.57,3/20,0
+180,LEG184,Harshit Rana,Bowler,80,India,true,false,CLASSIC_BOWL,34,,25.72,,,,40,9.51,3/24,0
+181,LEG178,MC Henriques,Bowler,80,Australia,true,true,CLASSIC_BOWL,62,,30.69,,,,42,8.14,3/12,0
+182,LEG176,S Aravind,Bowler,80,India,true,false,CLASSIC_BOWL,38,,23.08,,,,45,8.2,4/14,2
+183,LEG177,VR Aaron,Bowler,80,India,true,false,CLASSIC_BOWL,52,,33.65,,,,44,8.93,3/16,0
+184,LEG181,R Sharma,Bowler,80,India,true,false,CLASSIC_BOWL,44,,27.15,,,,40,7.02,3/13,0

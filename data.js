@@ -37,51 +37,61 @@ const TEAMS = [
 ];
 
 // ---------- players ----------
-// Pools live in players.js. Photos come from photos.json (player name -> image URL, from Wikipedia);
-// players missing there are looked up in the browser. To use your own picture, add or edit the entry
-// in photos.json, e.g. "Virat Kohli": "/players/kohli.jpg" with the file in public/players/.
-const { CURRENT, LEGENDS, ICONS } = require('./players');
+// Pools are loaded from the CSVs in data/ by players.js. Photos come from photos.json (player name -> image URL,
+// from Wikipedia); players missing there are looked up in the browser. To use your own picture, add or edit the
+// entry in photos.json, e.g. "Virat Kohli": "/players/kohli.jpg" with the file in public/players/.
+const { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED } = require('./players');
 let PHOTOS = {};
 try { PHOTOS = require('./photos.json'); } catch {}
 
-// One catalogue of every player. Ids are stable: current players from 1, legends from 1001.
-const withMeta = (list, start) => list.map((p, i) => ({
-  id: start + i, ...p, img: PHOTOS[p.name] || '', overseas: p.country !== 'IND'
-}));
-const CURRENT_P = withMeta(CURRENT, 1);
-const LEGENDS_P = withMeta(LEGENDS, 1001);
-const PLAYERS = [...CURRENT_P, ...LEGENDS_P];
-const iconIds = new Set(CURRENT_P.filter(p => ICONS.includes(p.name)).map(p => p.id));
+// Short names like "V Kohli" or "Mohammad Siraj" reuse a known photo when exactly one known player
+// has the same surname and first initial.
+const norm = s => s.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+const photoKeys = Object.keys(PHOTOS).map(k => [k, norm(k).split(' ')]);
+function photoFor(name) {
+  if (PHOTOS[name]) return PHOTOS[name];
+  const words = norm(name).split(' '), surname = words[words.length - 1];
+  const exact = photoKeys.find(([, w]) => w.join(' ') === words.join(' '));
+  if (exact) return PHOTOS[exact[0]];
+  const hits = photoKeys.filter(([, w]) => w[w.length - 1] === surname && w[0][0] === words[0][0]);
+  return hits.length === 1 ? PHOTOS[hits[0][0]] : '';
+}
+const withPhoto = p => ({ ...p, img: photoFor(p.name) });
+
+// One catalogue of every player the client may need to show, keyed by id.
+const PLAYERS = [...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(withPhoto);
+const byId = new Map(PLAYERS.map(p => [p.id, p]));
+const fromCatalog = list => list.map(p => ({ ...byId.get(p.id), ...p, img: byId.get(p.id).img }));
+for (const t of Object.values(RETENTIONS)) t.players = fromCatalog(t.players);
 
 // ---------- auction modes ----------
-// pool() returns the players for one auction; it runs when the auction starts, so random pools differ each time.
+// purse: starting purse in lakhs, or null when it comes from the team's retentions.
 const MODES = {
   mega: {
     name: 'Mega Auction',
-    desc: 'Every current IPL player goes under the hammer. Build a full squad.',
+    desc: 'The full IPL mega auction list, set by set. Build a 25-player squad.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
-    pool: () => CURRENT_P
+    pool: () => fromCatalog(MEGA)
   },
   legendsUpgraded: {
     name: 'Legends Upgraded',
-    desc: 'IPL greats from 2008 to today plus every current player.',
+    desc: 'IPL greats from 2008 to today alongside current stars, with career stats.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
-    pool: () => [...LEGENDS_P, ...CURRENT_P]
+    pool: () => fromCatalog(UPGRADED)
   },
   legends: {
-    name: 'Legends Auction',
-    desc: 'All-time IPL legends and modern icons only.',
+    name: 'IPL Legends Auction',
+    desc: 'Top batters and bowlers from IPL history, 2008–2025, with career stats.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
-    pool: () => [...LEGENDS_P, ...CURRENT_P.filter(p => iconIds.has(p.id))]
+    pool: () => fromCatalog(LEGENDS)
   },
-  mini: {
-    name: 'Mock Auction',
-    desc: 'A quick mini auction: 90 random current players, smaller purse.',
-    purse: 5000, maxSquad: 12, maxOverseas: 4,
-    pool: () => [...CURRENT_P].sort(() => Math.random() - 0.5).slice(0, 90)
+  mock: {
+    name: 'IPL 2026 Mock Auction',
+    desc: 'Real 2026 retentions. Each team keeps its retained players and bids with the purse it has left.',
+    purse: null, maxSquad: 25, maxOverseas: 8, retentions: RETENTIONS,
+    pool: () => fromCatalog(MOCK_POOL)
   }
 };
-// Player counts shown before the auction starts (the mini pool size is fixed).
-for (const m of Object.values(MODES)) m.size = m === MODES.mini ? 90 : m.pool().length;
+for (const m of Object.values(MODES)) m.size = m.pool().length;
 
 module.exports = { RULES, TEAMS, PLAYERS, MODES };

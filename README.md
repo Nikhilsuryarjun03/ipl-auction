@@ -14,8 +14,9 @@ Open it in two browser windows (or on two phones on the same Wi-Fi via your comp
 - `server.js` — Express + Socket.IO. Holds every room in memory and is the single source of truth:
   it runs the clock, validates bids (purse, squad size, overseas cap) and broadcasts state to the room.
 - `data.js` — teams, shared rules and the auction modes (purse, squad size, overseas cap and player pool for each).
-- `players.js` — the player lists: current IPL players, retired legends, and which current players count as icons.
-  Each line is `"Name/ROLE"` or `"Name/ROLE/COUNTRY"`, grouped by base price.
+- `data/*.csv` — the player lists for each mode (PlayAuction exports): mega auction, IPL legends, legends upgraded,
+  and the IPL 2026 mock auction pool plus each team's real retentions. Edit or replace a CSV to change a list.
+- `players.js` — reads those CSVs and turns set codes (e.g. `BA1`, `UFA2`, `OSB-1`) into readable set names.
 - `photos.json` — player name → photo URL (from Wikipedia). Add or replace entries to change a player's picture;
   players without one show their initials.
 - `public/` — the browser client (plain HTML/CSS/JS, no build step).
@@ -23,10 +24,10 @@ Open it in two browser windows (or on two phones on the same Wi-Fi via your comp
 Auction modes (the host picks one in the lobby):
 | Mode | Pool | Purse | Squad |
 |---|---|---|---|
-| Mega Auction | every current IPL player | ₹120 cr | up to 25 |
-| Legends Upgraded | legends + every current player | ₹120 cr | up to 25 |
-| Legends Auction | legends + modern icons | ₹120 cr | up to 25 |
-| Mock Auction | 90 random current players | ₹50 cr | up to 12 |
+| Mega Auction | 523 players (`playauction_mega_auction.csv`) | ₹120 cr | up to 25 |
+| Legends Upgraded | 301 legends and current stars, with IPL stats | ₹120 cr | up to 25 |
+| IPL Legends Auction | 184 all-time IPL greats, with IPL stats | ₹120 cr | up to 25 |
+| IPL 2026 Mock Auction | 350-player pool; teams start with their real 2026 retentions | each team's real purse left | up to 25 (retained players count) |
 
 Features: room codes and invite links, four auction modes, IPL-style sets (Marquee first), team claiming,
 host controls (pause, close lot, end, bid timer), an unsold-players second round, an auction board

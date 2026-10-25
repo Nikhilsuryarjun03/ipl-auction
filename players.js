@@ -1,121 +1,72 @@
-// Player pools for every auction mode.
-// Each entry is "Name/ROLE" (Indian) or "Name/ROLE/COUNTRY" (overseas). ROLE: BAT, WK, AR, BOWL.
-// Base prices are in lakhs (200 = ₹2 cr) and are game settings, not official IPL values.
+// Player pools for every auction mode, loaded from the CSV files in data/.
+// To change a list, edit or replace the CSV; the columns are the ones PlayAuction exports.
+const fs = require('fs');
+const path = require('path');
 
-const parse = (base, list) => list.map(s => {
-  const [name, role, country = 'IND'] = s.split('/');
-  return { name, role, country, base };
+const ROLE = { 'Batsman': 'BAT', 'Wicket-Keeper': 'WK', 'All-Rounder': 'AR', 'Bowler': 'BOWL' };
+const COUNTRY = {
+  India: 'IND', Australia: 'AUS', England: 'ENG', 'South Africa': 'SA', 'New Zealand': 'NZ', 'West Indies': 'WI',
+  'Sri Lanka': 'SL', Afghanistan: 'AFG', Bangladesh: 'BAN', Pakistan: 'PAK', Netherlands: 'NED', Ireland: 'IRE', Zimbabwe: 'ZIM'
+};
+
+// Set codes in the CSVs (e.g. BA1, UFA2, OSB-1, ELITE_BAT) turned into readable names.
+const SET_NAMES = {
+  BA: 'Batters', AL: 'All-rounders', WK: 'Wicket-keepers', FA: 'Fast bowlers', SP: 'Spinners',
+  UBA: 'Uncapped batters', UAL: 'Uncapped all-rounders', UWK: 'Uncapped wicket-keepers', UFA: 'Uncapped fast bowlers', USP: 'Uncapped spinners',
+  MARQ: 'Marquee', IB: 'Indian batters', OSB: 'Overseas batters', IPA: 'Indian all-rounders', OPA: 'Overseas all-rounders',
+  IW: 'Indian wicket-keepers', OWK: 'Overseas wicket-keepers', ISA: 'Indian spin all-rounders', OSA: 'Overseas spin all-rounders',
+  IP: 'Indian pacers', OP: 'Overseas pacers', IS: 'Indian spinners', OSS: 'Overseas spinners',
+  MEGA: 'Mega stars', ELITE_BAT: 'Elite batters', ELITE_WK: 'Elite wicket-keepers', ELITE_AR: 'Elite all-rounders',
+  ELITE_BOWL: 'Elite bowlers', STAR_BAT: 'Star batters', STAR_AR: 'Star all-rounders', STAR_BOWL: 'Star bowlers',
+  CLASSIC_BAT: 'Classic batters', CLASSIC_BOWL: 'Classic bowlers'
+};
+function setLabel(code) {
+  const m = /^([A-Z_]+?)-?(\d*)$/.exec(code);
+  if (!m || !SET_NAMES[m[1]]) return code; // already readable, e.g. "Marquee Set 1"
+  return m[2] ? `${SET_NAMES[m[1]]} ${m[2]}` : SET_NAMES[m[1]];
+}
+
+function readCsv(file) {
+  const text = fs.readFileSync(path.join(__dirname, 'data', file), 'utf8').replace(/^﻿/, '').trim();
+  const [head, ...rows] = text.split(/\r?\n/);
+  const keys = head.split(',');
+  return rows.filter(Boolean).map(line => Object.fromEntries(line.split(',').map((v, i) => [keys[i], v.trim()])));
+}
+
+const num = v => (v === '' || v == null ? null : Number(v));
+function statsOf(r) {
+  const s = {
+    m: num(r.stat_matches), runs: num(r.stat_runs), avg: num(r.stat_average), sr: num(r.stat_strikeRate),
+    hs: r.stat_highestScore || null, wkts: num(r.stat_wickets), econ: num(r.stat_economy), best: r.stat_bestFigures || null
+  };
+  Object.keys(s).forEach(k => s[k] == null && delete s[k]);
+  return Object.keys(s).length ? s : null;
+}
+
+function toPlayer(r, id) {
+  return {
+    id, key: r.id, name: r.name, role: ROLE[r.role] || 'AR',
+    country: COUNTRY[r.country] || r.country, overseas: r.isOverseas === 'true', capped: r.isCapped === 'true',
+    base: Number(r.basePrice), set: setLabel(r.set), prevTeam: r.previousTeam || '', stats: statsOf(r)
+  };
+}
+
+// Ids: mega list 1–999, extra mock players 1000+, legends 2001+, legends upgraded 3001+.
+const MEGA = readCsv('playauction_mega_auction.csv').map((r, i) => toPlayer(r, i + 1));
+const byKey = new Map(MEGA.map(p => [p.key, p]));
+const EXTRA = []; // players that appear in the mock files but not in the mega list
+let nextExtra = 1000;
+const lookup = r => byKey.get(r.id) || (() => { const p = toPlayer(r, nextExtra++); byKey.set(p.key, p); EXTRA.push(p); return p; })();
+
+// IPL 2026 mock: the auction pool, plus each team's retained players, purse and slots.
+const MOCK_POOL = readCsv('playauction_ipl2026_mock_auction.csv').map(r => ({ ...lookup(r), set: setLabel(r.set), prevTeam: r.previousTeam || '' }));
+const RETENTIONS = {};
+readCsv('playauction_ipl2026_mock_retentions.csv').forEach(r => {
+  const t = (RETENTIONS[r.team] ||= { purse: Number(r.purse_left), slots: Number(r.available_slots), overseasSlots: Number(r.overseas_slots), players: [] });
+  t.players.push({ ...lookup({ ...r, set: 'Retained' }), price: Number(r.price), retained: true });
 });
 
-// ---------- current IPL players (auction pool) ----------
-const CURRENT = [
-  ...parse(200, [
-    "Virat Kohli/BAT", "Rohit Sharma/BAT", "MS Dhoni/WK", "Jasprit Bumrah/BOWL", "Shubman Gill/BAT",
-    "Rishabh Pant/WK", "Suryakumar Yadav/BAT", "Hardik Pandya/AR", "Ravindra Jadeja/AR", "KL Rahul/WK",
-    "Shreyas Iyer/BAT", "Yashasvi Jaiswal/BAT", "Mohammed Shami/BOWL", "Arshdeep Singh/BOWL", "Yuzvendra Chahal/BOWL",
-    "Sanju Samson/WK", "Abhishek Sharma/AR", "Rinku Singh/BAT", "Axar Patel/AR", "Kuldeep Yadav/BOWL",
-    "Mohammed Siraj/BOWL", "Ishan Kishan/WK", "Ruturaj Gaikwad/BAT", "Tilak Varma/BAT", "Varun Chakravarthy/BOWL",
-    "Pat Cummins/BOWL/AUS", "Mitchell Starc/BOWL/AUS", "Travis Head/BAT/AUS", "Jos Buttler/WK/ENG", "Rashid Khan/BOWL/AFG",
-    "Heinrich Klaasen/WK/SA", "Kagiso Rabada/BOWL/SA", "Glenn Maxwell/AR/AUS", "Nicholas Pooran/WK/WI", "Sunil Narine/AR/WI",
-    "Andre Russell/AR/WI", "Cameron Green/AR/AUS", "Phil Salt/WK/ENG", "Josh Hazlewood/BOWL/AUS", "Trent Boult/BOWL/NZ",
-    "Jofra Archer/BOWL/ENG", "Liam Livingstone/AR/ENG"
-  ]),
-  ...parse(150, [
-    "Bhuvneshwar Kumar/BOWL", "Washington Sundar/AR", "Shivam Dube/AR", "Ravichandran Ashwin/BOWL", "Prasidh Krishna/BOWL",
-    "Harshal Patel/BOWL", "Venkatesh Iyer/AR", "Deepak Chahar/BOWL", "Riyan Parag/AR", "Dhruv Jurel/WK",
-    "Nitish Kumar Reddy/AR", "Sai Sudharsan/BAT", "Rajat Patidar/BAT", "Jitesh Sharma/WK", "Ravi Bishnoi/BOWL",
-    "Mayank Yadav/BOWL", "Avesh Khan/BOWL", "Krunal Pandya/AR",
-    "Marcus Stoinis/AR/AUS", "David Miller/BAT/SA", "Quinton de Kock/WK/SA", "Rachin Ravindra/AR/NZ", "Aiden Markram/BAT/SA",
-    "Mitchell Marsh/AR/AUS", "Tim David/BAT/AUS", "Sam Curran/AR/ENG", "Will Jacks/AR/ENG", "Marco Jansen/AR/SA",
-    "Tristan Stubbs/WK/SA", "Matheesha Pathirana/BOWL/SL", "Wanindu Hasaranga/AR/SL", "Noor Ahmad/BOWL/AFG", "Lockie Ferguson/BOWL/NZ",
-    "Anrich Nortje/BOWL/SA", "Devon Conway/BAT/NZ", "Jake Fraser-McGurk/BAT/AUS", "Josh Inglis/WK/AUS", "Faf du Plessis/BAT/SA",
-    "Shimron Hetmyer/BAT/WI", "Glenn Phillips/AR/NZ", "Ryan Rickelton/WK/SA", "Mitchell Santner/AR/NZ", "Adam Zampa/BOWL/AUS",
-    "Gerald Coetzee/BOWL/SA", "Dewald Brevis/BAT/SA", "David Warner/BAT/AUS", "Kane Williamson/BAT/NZ"
-  ]),
-  ...parse(100, [
-    "Shardul Thakur/AR", "T Natarajan/BOWL", "Khaleel Ahmed/BOWL", "Mukesh Kumar/BOWL", "Harshit Rana/BOWL",
-    "Sandeep Sharma/BOWL", "Tushar Deshpande/BOWL", "Yash Dayal/BOWL", "Ajinkya Rahane/BAT", "Devdutt Padikkal/BAT",
-    "Shashank Singh/BAT", "Rahul Tewatia/AR", "Shahrukh Khan/BAT", "Ayush Badoni/BAT", "Abdul Samad/BAT",
-    "Abishek Porel/WK", "Prabhsimran Singh/WK", "Angkrish Raghuvanshi/BAT", "Ramandeep Singh/AR", "Rahul Tripathi/BAT",
-    "Nitish Rana/BAT", "Karun Nair/BAT", "Mohit Sharma/BOWL", "Akash Deep/BOWL", "Mohsin Khan/BOWL",
-    "Umran Malik/BOWL", "Rahul Chahar/BOWL", "Ishant Sharma/BOWL", "Jaydev Unadkat/BOWL", "Manish Pandey/BAT",
-    "Deepak Hooda/AR", "Vijay Shankar/AR", "Mayank Agarwal/BAT", "Prithvi Shaw/BAT", "Umesh Yadav/BOWL",
-    "Sai Kishore/BOWL", "Naman Dhir/AR",
-    "Maheesh Theekshana/BOWL/SL", "Rovman Powell/BAT/WI", "Azmatullah Omarzai/AR/AFG", "Romario Shepherd/AR/WI", "Nathan Ellis/BOWL/AUS",
-    "Spencer Johnson/BOWL/AUS", "Alzarri Joseph/BOWL/WI", "Fazalhaq Farooqi/BOWL/AFG", "Dushmantha Chameera/BOWL/SL", "Mustafizur Rahman/BOWL/BAN",
-    "Rahmanullah Gurbaz/WK/AFG", "Jonny Bairstow/WK/ENG", "Daryl Mitchell/AR/NZ", "Moeen Ali/AR/ENG", "Brydon Carse/AR/ENG",
-    "Kamindu Mendis/AR/SL", "Jamie Overton/AR/ENG", "Jacob Bethell/AR/ENG", "Lungi Ngidi/BOWL/SA", "Shamar Joseph/BOWL/WI",
-    "Sherfane Rutherford/BAT/WI", "Kusal Mendis/WK/SL", "Allah Ghazanfar/BOWL/AFG", "Steve Smith/BAT/AUS", "Kyle Jamieson/BOWL/NZ"
-  ]),
-  ...parse(75, [
-    "Vaibhav Arora/BOWL", "Mayank Markande/BOWL", "Karn Sharma/BOWL", "Kumar Kartikeya/BOWL", "Akash Madhwal/BOWL",
-    "Suyash Sharma/BOWL", "Rasikh Dar/BOWL", "Harpreet Brar/AR", "Shahbaz Ahmed/AR", "Mahipal Lomror/BAT",
-    "Kumar Kushagra/WK", "Anuj Rawat/WK", "Jayant Yadav/AR", "Vijaykumar Vyshak/BOWL", "Yash Thakur/BOWL",
-    "Kuldeep Sen/BOWL", "Chetan Sakariya/BOWL", "Kartik Tyagi/BOWL", "Nehal Wadhera/BAT", "Arjun Tendulkar/AR",
-    "Reece Topley/BOWL/ENG", "Corbin Bosch/AR/SA", "Xavier Bartlett/BOWL/AUS", "Aaron Hardie/AR/AUS", "Matthew Breetzke/BAT/SA",
-    "Donovan Ferreira/WK/SA", "Will O'Rourke/BOWL/NZ", "Tim Seifert/WK/NZ", "Mujeeb Ur Rahman/BOWL/AFG", "Nuwan Thushara/BOWL/SL",
-    "Kwena Maphaka/BOWL/SA", "Nandre Burger/BOWL/SA", "Mitchell Owen/AR/AUS", "Wiaan Mulder/AR/SA", "Rilee Rossouw/BAT/SA",
-    "Karim Janat/AR/AFG", "Charith Asalanka/BAT/SL", "Sediqullah Atal/BAT/AFG", "Eshan Malinga/BOWL/SL", "Lizaad Williams/BOWL/SA",
-    "Richard Gleeson/BOWL/ENG", "Blessing Muzarabani/BOWL/ZIM", "Lhuan-dre Pretorius/WK/SA", "Bevon Jacobs/BAT/NZ"
-  ]),
-  ...parse(50, [
-    "Manav Suthar/BOWL", "Simarjeet Singh/BOWL", "Anukul Roy/AR", "Mukesh Choudhary/BOWL", "Shreyas Gopal/BOWL",
-    "Kamlesh Nagarkoti/AR", "Himmat Singh/BAT", "Atharva Taide/BAT", "Abhinav Manohar/BAT", "Darshan Nalkande/AR",
-    "Rajvardhan Hangargekar/AR", "Shams Mulani/AR", "Swapnil Singh/AR", "Gurnoor Brar/BOWL", "M Siddharth/BOWL",
-    "Sachin Baby/BAT", "Raj Angad Bawa/AR", "Arshad Khan/AR", "Kulwant Khejroliya/BOWL"
-  ]),
-  ...parse(30, [
-    "Ashutosh Sharma/BAT", "Sameer Rizvi/BAT", "Priyansh Arya/BAT", "Vaibhav Suryavanshi/BAT", "Ayush Mhatre/BAT",
-    "Aniket Verma/BAT", "Shaik Rasheed/BAT", "Andre Siddarth/BAT", "Swastik Chikara/BAT", "Shubham Dubey/BAT",
-    "Pyla Avinash/BAT", "Harnoor Pannu/BAT", "Robin Minz/WK", "Urvil Patel/WK", "Aryan Juyal/WK",
-    "Vansh Bedi/WK", "Luvnith Sisodia/WK", "Kunal Singh Rathore/WK", "Krishnan Shrijith/WK", "Anshul Kamboj/AR",
-    "Vipraj Nigam/AR", "Musheer Khan/AR", "Suryansh Shedge/AR", "Nishant Sindhu/AR", "Manoj Bhandage/AR",
-    "Yudhvir Singh/AR", "Ramakrishna Ghosh/AR", "Ajay Mandal/AR", "Madhav Tiwari/AR", "Tripurana Vijay/AR",
-    "Manvanth Kumar/AR", "Yuvraj Chaudhary/AR", "Arshin Kulkarni/AR", "Ashwani Kumar/BOWL", "Vignesh Puthur/BOWL",
-    "Digvesh Rathi/BOWL", "Prince Yadav/BOWL", "Zeeshan Ansari/BOWL", "Harsh Dubey/BOWL", "Gurjapneet Singh/BOWL",
-    "Abhinandan Singh/BOWL", "Mohit Rathee/BOWL", "Satyanarayana Raju/BOWL", "Ashok Sharma/BOWL", "Praveen Dubey/BOWL"
-  ])
-];
+const LEGENDS = readCsv('playauction_ipl_legends_auction.csv').map((r, i) => toPlayer(r, 2001 + i));
+const UPGRADED = readCsv('playauction_legends_upgraded.csv').map((r, i) => toPlayer(r, 3001 + i));
 
-// ---------- retired / former IPL greats ----------
-const LEGENDS = [
-  ...parse(200, [
-    "Sachin Tendulkar/BAT", "Suresh Raina/BAT", "Yuvraj Singh/AR", "Virender Sehwag/BAT", "Gautam Gambhir/BAT",
-    "Harbhajan Singh/BOWL", "Shikhar Dhawan/BAT", "Dinesh Karthik/WK",
-    "AB de Villiers/BAT/SA", "Chris Gayle/BAT/WI", "Shane Warne/BOWL/AUS", "Lasith Malinga/BOWL/SL", "Dale Steyn/BOWL/SA",
-    "Kieron Pollard/AR/WI", "Dwayne Bravo/AR/WI", "Shane Watson/AR/AUS", "Brendon McCullum/WK/NZ", "Adam Gilchrist/WK/AUS",
-    "Matthew Hayden/BAT/AUS", "Jacques Kallis/AR/SA"
-  ]),
-  ...parse(150, [
-    "Amit Mishra/BOWL", "Piyush Chawla/BOWL", "Ambati Rayudu/BAT", "Robin Uthappa/BAT", "Parthiv Patel/WK",
-    "Murali Vijay/BAT", "Zaheer Khan/BOWL", "Ashish Nehra/BOWL", "Irfan Pathan/AR", "Yusuf Pathan/AR",
-    "Rahul Dravid/BAT", "Sourav Ganguly/BAT", "VVS Laxman/BAT", "Anil Kumble/BOWL", "Wriddhiman Saha/WK",
-    "Muttiah Muralitharan/BOWL/SL", "Kumar Sangakkara/WK/SL", "Mahela Jayawardene/BAT/SL", "Sanath Jayasuriya/AR/SL", "Tillakaratne Dilshan/BAT/SL",
-    "Michael Hussey/BAT/AUS", "Andrew Symonds/AR/AUS", "Brett Lee/BOWL/AUS", "Ricky Ponting/BAT/AUS", "Kevin Pietersen/BAT/ENG",
-    "Eoin Morgan/BAT/ENG", "Daniel Vettori/BOWL/NZ", "Morne Morkel/BOWL/SA", "Albie Morkel/AR/SA", "Mitchell Johnson/BOWL/AUS",
-    "Imran Tahir/BOWL/SA", "Aaron Finch/BAT/AUS", "Chris Morris/AR/SA", "Ben Stokes/AR/ENG", "Shakib Al Hasan/AR/BAN",
-    "Glenn McGrath/BOWL/AUS", "Shaun Pollock/AR/SA", "Graeme Smith/BAT/SA", "Shahid Afridi/AR/PAK", "Shoaib Akhtar/BOWL/PAK"
-  ]),
-  ...parse(100, [
-    "Kedar Jadhav/AR", "Mandeep Singh/BAT", "Praveen Kumar/BOWL", "RP Singh/BOWL", "Munaf Patel/BOWL",
-    "Pragyan Ojha/BOWL", "Vinay Kumar/BOWL", "Ashok Dinda/BOWL", "Dhawal Kulkarni/BOWL", "Manoj Tiwary/BAT",
-    "Naman Ojha/WK", "Paul Valthaty/BAT", "Lakshmipathy Balaji/BOWL", "Sreesanth/BOWL", "Swapnil Asnodkar/BAT",
-    "Shaun Marsh/BAT/AUS", "Dwayne Smith/BAT/WI", "Ross Taylor/BAT/NZ", "JP Duminy/AR/SA", "Mohammad Nabi/AR/AFG",
-    "Jason Holder/AR/WI", "Sohail Tanvir/BOWL/PAK", "Doug Bollinger/BOWL/AUS", "Dirk Nannes/BOWL/AUS", "Lendl Simmons/BAT/WI",
-    "Samuel Badree/BOWL/WI", "Darren Sammy/AR/WI", "Makhaya Ntini/BOWL/SA", "Herschelle Gibbs/BAT/SA", "Mark Boucher/WK/SA",
-    "Brad Hodge/BAT/AUS", "Cameron White/BAT/AUS", "David Hussey/AR/AUS", "James Faulkner/AR/AUS", "Nathan Coulter-Nile/BOWL/AUS",
-    "Ravi Bopara/AR/ENG", "Jason Roy/BAT/ENG", "Alex Hales/BAT/ENG", "Moises Henriques/AR/AUS", "Corey Anderson/AR/NZ",
-    "Tim Southee/BOWL/NZ", "Martin Guptill/BAT/NZ", "Colin Munro/BAT/NZ", "Thisara Perera/AR/SL", "Angelo Mathews/AR/SL",
-    "Ajantha Mendis/BOWL/SL", "Nuwan Kulasekara/BOWL/SL", "Kyle Mills/BOWL/NZ"
-  ])
-];
-
-// Current players great enough for the Legends Auction.
-const ICONS = [
-  'Virat Kohli', 'Rohit Sharma', 'MS Dhoni', 'Jasprit Bumrah', 'Ravindra Jadeja', 'Sunil Narine', 'Andre Russell',
-  'Rashid Khan', 'Yuzvendra Chahal', 'Bhuvneshwar Kumar', 'Ravichandran Ashwin', 'David Warner', 'Faf du Plessis',
-  'Glenn Maxwell', 'Trent Boult', 'Ajinkya Rahane', 'KL Rahul', 'Jos Buttler', 'Suryakumar Yadav', 'Hardik Pandya',
-  'Mohammed Shami', 'Kane Williamson', 'Ishant Sharma', 'Umesh Yadav', 'Mitchell Starc', 'Pat Cummins'
-];
-
-module.exports = { CURRENT, LEGENDS, ICONS };
+module.exports = { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED };

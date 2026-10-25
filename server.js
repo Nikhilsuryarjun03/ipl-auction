@@ -7,7 +7,7 @@ const { RULES, TEAMS, PLAYERS, MODES } = require('./data');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, { perMessageDeflate: { threshold: 2048 } }); // the player catalogue is large; compress it
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = new Map();
@@ -22,7 +22,7 @@ const teamName = id => TEAMS.find(t => t.id === id).name;
 // Sent once per connection: everything the client needs that never changes during a room.
 const META = {
   teams: TEAMS, rules: RULES, players: PLAYERS,
-  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size }]))
+  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size, retentions: !!m.retentions }]))
 };
 
 function newCode() {
@@ -40,7 +40,7 @@ function createRoom() {
   const room = {
     code: newCode(), hostId: null, phase: 'lobby', // lobby | auction | finished
     mode: 'mega', bidSeconds: RULES.bidSeconds,
-    members: new Map(), purse: {}, squads: {}, xi: {},
+    members: new Map(), purse: {}, startPurse: {}, squads: {}, xi: {},
     queue: [], unsold: [], unsoldFinal: [], unsoldRound: false, soldLog: [],
     lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | closed
     result: null, paused: false, log: [], interval: null, nextTimer: null, cleanupTimer: null
@@ -50,8 +50,15 @@ function createRoom() {
   return room;
 }
 
+// Fresh purses and squads for the room's mode. In the mock auction teams start with their real retentions.
 function resetTeams(room) {
-  TEAMS.forEach(t => { room.purse[t.id] = MODES[room.mode].purse; room.squads[t.id] = []; room.xi[t.id] = { xi: [], impact: null }; });
+  const mode = MODES[room.mode];
+  TEAMS.forEach(t => {
+    const kept = mode.retentions?.[t.id];
+    room.purse[t.id] = room.startPurse[t.id] = kept ? kept.purse : mode.purse;
+    room.squads[t.id] = kept ? kept.players.map(p => ({ ...p })) : [];
+    room.xi[t.id] = { xi: [], impact: null };
+  });
 }
 
 // kind: info | join | team | bid | sold | unsold | chat | host
@@ -77,7 +84,7 @@ function publicState(room) {
   return {
     code: room.code, hostId: room.hostId, phase: room.phase, mode: room.mode, rules: rulesFor(room),
     members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
-    teams: TEAMS.map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
+    teams: TEAMS.map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
     status: room.status, result: room.result, paused: room.paused,
     nextBid: room.lot ? (room.bid == null ? room.lot.base : room.bid + increment(room.bid)) : null,
@@ -92,20 +99,10 @@ function publicState(room) {
 const broadcast = room => io.to(room.code).emit('state', publicState(room));
 
 // ---------- auction flow ----------
-const ROLE_ORDER = { BAT: 0, WK: 1, AR: 2, BOWL: 3 };
-const ROLE_SET = { BAT: 'Batters', WK: 'Wicket-keepers', AR: 'All-rounders', BOWL: 'Bowlers' };
-function setName(p) {
-  if (p.base >= 200) return 'Marquee';
-  if (p.base <= 30) return `Uncapped ${ROLE_SET[p.role]}`;
-  return `${ROLE_SET[p.role]} · ${fmt(p.base)} base`;
-}
-
-// IPL-style sets: Marquee first, then by base price and role; the order is shuffled inside each set.
+// Sets come from the player lists and run in list order; the order inside each set is random.
 function buildQueue(pool) {
   const sets = new Map();
-  [...pool]
-    .sort((a, b) => b.base - a.base || (a.base >= 200 ? 0 : ROLE_ORDER[a.role] - ROLE_ORDER[b.role]))
-    .forEach(p => { const s = setName(p); if (!sets.has(s)) sets.set(s, []); sets.get(s).push({ ...p, set: s }); });
+  pool.forEach(p => { if (!sets.has(p.set)) sets.set(p.set, []); sets.get(p.set).push({ ...p }); });
   return [...sets.values()].flatMap(shuffle);
 }
 

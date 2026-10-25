@@ -24,7 +24,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
 const ROLE = { BAT: 'Batter', BOWL: 'Bowler', AR: 'All-rounder', WK: 'Wicket-keeper' };
 const ROLE_GROUPS = [['BAT', 'Batters'], ['WK', 'Wicket-keepers'], ['AR', 'All-rounders'], ['BOWL', 'Bowlers']];
-const MODE_ICON = { mega: '🏆', legendsUpgraded: '⭐', legends: '👑', mini: '⚡' };
+const MODE_ICON = { mega: '🏆', legendsUpgraded: '⭐', legends: '👑', mock: '📋' };
 const P = id => catalog.get(id);
 const me =() => state?.members.find(m => m.id === session?.memberId);
 const team = id => state?.teams.find(t => t.id === id);
@@ -377,7 +377,8 @@ function lobbyView() {
           return `<button class="team-card ${t.id === mine ? 'mine' : ''}" style="${teamVars(t)}"
             data-act="pick" data-team="${t.id}" ${taken ? 'disabled' : ''} title="${t.id === mine ? 'Tap to release' : ''}">
             ${badge(t, 'md')}
-            <span class="tc-text"><strong>${esc(t.name)}</strong><span class="tc-status ${t.owner ? 'taken' : ''}">${status}</span></span>
+            <span class="tc-text"><strong>${esc(t.name)}</strong><span class="tc-status ${t.owner ? 'taken' : ''}">${status}</span>
+              ${t.squad.length ? `<span class="tc-kept">${t.squad.length} retained · ${fmt(t.purse)} left</span>` : ''}</span>
           </button>`;
         }).join('')}
       </section>
@@ -410,7 +411,7 @@ function lobbyView() {
           <dl class="rules">
             <div><dt>Mode</dt><dd>${esc(meta.modes[state.mode].name)}</dd></div>
             <div><dt>Players in pool</dt><dd>${meta.modes[state.mode].size}</dd></div>
-            <div><dt>Purse</dt><dd>${fmt(r.purse)}</dd></div>
+            <div><dt>Purse</dt><dd>${r.purse ? fmt(r.purse) : 'From 2026 retentions'}</dd></div>
             <div><dt>Squad size</dt><dd>Up to ${r.maxSquad}</dd></div>
             <div><dt>Overseas</dt><dd>Up to ${r.maxOverseas}</dd></div>
             <div class="stack"><dt>Bid timer</dt><dd>${timerControl(false)}</dd></div>
@@ -436,7 +437,7 @@ function modePicker() {
       <span class="mode-text">
         <strong>${esc(m.name)}</strong>
         <span class="mode-desc">${esc(m.desc)}</span>
-        <span class="mode-facts">${m.size} players · ${fmt(m.purse)} purse · ${m.maxSquad}-player squads</span>
+        <span class="mode-facts">${m.size} players · ${m.retentions ? 'real retentions' : `${fmt(m.purse)} purse`} · ${m.maxSquad}-player squads</span>
       </span>
     </button>`).join('')}
   </section>`;
@@ -478,7 +479,7 @@ function joinStrip() {
   const free = state.teams.filter(t => !t.owner);
   return `<div class="join-strip">
     <div><strong>You don’t have a team yet</strong>
-    <p class="muted small">${free.length ? `Pick a free franchise to start bidding with the full ${fmt(state.rules.purse)} purse.` : 'All 10 franchises are taken, so you’re watching this one.'}</p></div>
+    <p class="muted small">${free.length ? `Pick a free franchise to start bidding${state.rules.purse ? ` with the full ${fmt(state.rules.purse)} purse` : ' with its retained squad and purse'}.` : 'All 10 franchises are taken, so you’re watching this one.'}</p></div>
     ${free.length ? `<div class="join-teams">${free.map(t => `<button class="join-team" data-act="pick" data-team="${t.id}" title="${esc(t.name)}">${badge(t, 'sm')}<span>${esc(t.id)}</span></button>`).join('')}</div>` : ''}
   </div>`;
 }
@@ -520,11 +521,12 @@ function auctionView() {
             <div class="tags">
               <span class="tag">${ROLE[lot.role]}</span>
               <span class="tag ${lot.overseas ? 'os' : ''}">${esc(lot.country)}${lot.overseas ? ' · Overseas' : ''}</span>
+              ${lot.capped === false ? '<span class="tag">Uncapped</span>' : ''}
+              ${lot.prevTeam ? `<span class="tag">Last IPL team: ${esc(lot.prevTeam)}</span>` : ''}
             </div>
             <dl class="lot-stats">
               <div><dt>Base price</dt><dd>${fmt(lot.base)}</dd></div>
-              <div><dt>Role</dt><dd>${ROLE[lot.role]}</dd></div>
-              <div><dt>Nationality</dt><dd>${lot.overseas ? 'Overseas' : 'Indian'}</dd></div>
+              ${lotStats(lot)}
             </dl>
           </div>
         </article>
@@ -567,6 +569,28 @@ function auctionView() {
   updateClock();
 }
 
+// IPL career numbers from the player lists: batting for batters, bowling for bowlers, a mix for all-rounders.
+function lotStats(p) {
+  const s = p.stats;
+  if (!s) return `<div><dt>Role</dt><dd>${ROLE[p.role]}</dd></div><div><dt>Nationality</dt><dd>${p.overseas ? 'Overseas' : 'Indian'}</dd></div>`;
+  const items = [];
+  if (s.m != null) items.push(['IPL matches', s.m]);
+  const bowl = s.wkts != null && (p.role === 'BOWL' || s.runs == null);
+  if (bowl) {
+    items.push(['Wickets', s.wkts]);
+    if (s.econ != null) items.push(['Economy', s.econ]);
+    if (s.best) items.push(['Best', s.best]);
+  } else {
+    if (s.runs != null) items.push(['Runs', s.runs]);
+    if (s.sr != null) items.push(['Strike rate', s.sr]);
+    if (p.role === 'AR' && s.wkts != null) items.push(['Wickets', s.wkts]);
+    else if (s.avg != null) items.push(['Average', s.avg]);
+    else if (s.hs) items.push(['Highest', s.hs]);
+  }
+  if (items.length === 1) items.push(['Role', ROLE[p.role]]);
+  return items.slice(0, 3).map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+}
+
 // ---------- teams panel (tap a team to see its squad by role) ----------
 function squadGroups(t) {
   if (!t.squad.length) return '<p class="sg-empty">No players bought yet.</p>';
@@ -574,7 +598,7 @@ function squadGroups(t) {
     const ps = t.squad.filter(p => p.role === role).sort((a, b) => b.price - a.price);
     return `<div class="sg">
       <div class="sg-head"><span>${label}</span><span>${ps.length}</span></div>
-      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
+      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}${p.retained ? '<span class="os-mark rt" title="Retained">R</span>' : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
         : '<div class="sg-row none">None yet</div>'}
     </div>`;
   }).join('');
@@ -594,7 +618,7 @@ function teamsCard() {
             ${badge(t, 'sm')}
             <div class="p-info">
               <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span></span><span class="money">${fmt(t.purse)}</span></div>
-              <div class="meter"><span style="width:${(t.purse / r.purse) * 100}%"></span></div>
+              <div class="meter"><span style="width:${(t.purse / (t.startPurse || 1)) * 100}%"></span></div>
               <div class="p-sub">${t.squad.length}/${r.maxSquad} players · ${t.squad.filter(p => p.overseas).length}/${r.maxOverseas} overseas</div>
             </div>
             <span class="chev" aria-hidden="true">${ICON.back}</span>
@@ -725,11 +749,11 @@ function squadsPage(final) {
           ${teamHead(t, t.id === mine && t.squad.length ? '<button class="btn sm" data-act="xi-edit">Pick XI</button>' : '')}
           <dl class="mini-stats">
             <div><dt>Players</dt><dd>${t.squad.length}</dd></div>
-            <div><dt>Spent</dt><dd>${fmt(state.rules.purse - t.purse)}</dd></div>
+            <div><dt>${t.squad.some(p => p.retained) ? 'Spent at auction' : 'Spent'}</dt><dd>${fmt(t.startPurse - t.purse)}</dd></div>
             <div><dt>Left</dt><dd>${fmt(t.purse)}</dd></div>
           </dl>
           ${t.squad.length ? `<ul class="roster">${t.squad.slice().sort((a, b) => b.price - a.price).map(p =>
-            `<li>${playerLine(p)}<b class="price">${fmt(p.price)}</b></li>`).join('')}</ul>`
+            `<li>${playerLine(p)}${p.retained ? '<span class="tag rt">Retained</span>' : ''}<b class="price">${fmt(p.price)}</b></li>`).join('')}</ul>`
             : '<p class="empty">No players bought yet.</p>'}
         </section>`).join('')}
     </div>
