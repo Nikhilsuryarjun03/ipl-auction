@@ -10,6 +10,7 @@ let meta = null;          // { teams, rules, modes, players } sent on connect
 let catalog = new Map();  // player id -> player, from meta
 let draft = null;         // Playing XI being edited: { xi: [ids in batting order], impact }
 let homeTab = 'create';
+let homeSport = 'cricket'; // sport picked on the home screen's Create tab
 let boardTab = 'upcoming'; // upcoming | sold | unsold | leaders
 let showAllUpcoming = false;
 let feedFilter = 'all';   // all | chat
@@ -21,10 +22,27 @@ function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { 
 function save(s) { session = s; try { s ? localStorage.setItem(KEY, JSON.stringify(s)) : localStorage.removeItem(KEY); } catch {} }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
-const ROLE = { BAT: 'Batter', BOWL: 'Bowler', AR: 'All-rounder', WK: 'Wicket-keeper' };
-const ROLE_GROUPS = [['BAT', 'Batters'], ['WK', 'Wicket-keepers'], ['AR', 'All-rounders'], ['BOWL', 'Bowlers']];
-const MODE_ICON = { mega: '🏆', legendsUpgraded: '⭐', legends: '👑', mock: '📋' };
+const sportNow = () => state?.sport || homeSport;
+const isFootball = () => sportNow() === 'football';
+// Money: lakhs for cricket (100 = ₹1 cr), €M for football.
+const fmt = l => (isFootball() ? `€${l || 0}M` : l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
+const ROLE = {
+  BAT: 'Batter', BOWL: 'Bowler', AR: 'All-rounder', WK: 'Wicket-keeper',
+  GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Forward'
+};
+const ROLE_GROUPS_BY = {
+  cricket: [['BAT', 'Batters'], ['WK', 'Wicket-keepers'], ['AR', 'All-rounders'], ['BOWL', 'Bowlers']],
+  football: [['GK', 'Goalkeepers'], ['DEF', 'Defenders'], ['MID', 'Midfielders'], ['FWD', 'Forwards']]
+};
+const roleGroups = () => ROLE_GROUPS_BY[sportNow()];
+const XI = () => (isFootball() ? 'Starting XI' : 'Playing XI');
+const TEAM_WORD = () => (isFootball() ? 'club' : 'franchise');
+const hasOverseas = () => state?.rules.maxOverseas != null;
+// Short line under a player's name: "Batter · AUS" or "RW · 89 rated".
+const playerSub = p => p.position
+  ? `${esc(p.position)} · <span class="rating">${p.rating ?? '–'}</span>`
+  : `${ROLE[p.role]}${p.overseas ? ` · <span class="os-text">${esc(p.country)}</span>` : ''}`;
+const MODE_ICON = { mega: '🏆', legendsUpgraded: '⭐', legends: '👑', mock: '📋', football: '⚽' };
 const P = id => catalog.get(id);
 const me =() => state?.members.find(m => m.id === session?.memberId);
 const team = id => state?.teams.find(t => t.id === id);
@@ -71,7 +89,7 @@ function pumpImgQueue() {
 async function fetchWikiImg(name) {
   const q = new URLSearchParams({
     action: 'query', format: 'json', origin: '*', generator: 'search',
-    gsrsearch: `${name} cricketer`, gsrlimit: '5', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '480'
+    gsrsearch: `${name} ${isFootball() ? 'footballer' : 'cricketer'}`, gsrlimit: '5', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '480'
   });
   const res = await fetch(`https://en.wikipedia.org/w/api.php?${q}`);
   if (!res.ok) throw new Error('lookup failed');
@@ -172,7 +190,10 @@ socket.on('meta', m => {
   catalog = new Map(m.players.map(p => [p.id, p]));
   // Fill in the home screen's logo row without wiping anything typed into the forms.
   const row = document.querySelector('.logo-row');
-  if (row) row.innerHTML = m.teams.map(t => badge(t)).join('');
+  if (row) row.innerHTML = homeLogos();
+  const fp = document.getElementById('factPlayers'), fm = document.getElementById('factModes');
+  if (fp) fp.textContent = m.players.length.toLocaleString();
+  if (fm) fm.textContent = Object.keys(m.modes).length;
 });
 socket.on('state', s => { const prev = state; state = s; playSounds(prev, s); celebrate(); render(); });
 // The server sends just the seconds left once a second; beep in the last few seconds.
@@ -232,12 +253,14 @@ function restoreUI(ui) {
   if (board) board.scrollTop = ui.boardTop;
 }
 
-const brand = `<div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>Auction Room</span><span class="brand-tag">IPL</span></div>`;
+const brandHtml = () => `<div class="brand"><span class="brand-mark ${isFootball() ? 'ball' : ''}" aria-hidden="true"></span><span>Auction Room</span><span class="brand-tag">${isFootball() ? 'Football' : 'IPL'}</span></div>`;
+// Home screen logos for the selected sport (football has 50 clubs, so show a dozen).
+const homeLogos = () => (meta?.sports[homeSport].teams || []).slice(0, 12).map(t => badge(t)).join('');
 
 function topBar() {
   const t = me()?.teamId && team(me().teamId);
   return `<header class="topbar"><div class="topbar-in">
-    ${brand}
+    ${brandHtml()}
     <div class="tb-right">
       <button class="room-chip" data-act="copy" title="Copy invite link">
         <span class="muted">Room</span><b>${esc(state.code)}</b><span class="chip-act">${ICON.copy}<span>Invite</span></span>
@@ -254,10 +277,10 @@ function inviteSheet(code) {
   return `<div class="sheet-backdrop" id="inviteSheet">
     <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
       <button class="icon-btn sm sheet-close" id="noInvite" type="button" aria-label="Close">✕</button>
-      <span class="sheet-icon" aria-hidden="true">🏏</span>
+      <span class="sheet-icon" aria-hidden="true">🔨</span>
       <span class="label">You’re invited</span>
       <h2 id="inviteTitle">Join room <b>${esc(code)}</b></h2>
-      <p class="muted small">Enter your name to join. You’ll pick your franchise in the lobby.</p>
+      <p class="muted small">Enter your name to join. You’ll pick your team in the lobby.</p>
       <form id="inviteForm">
         <input id="iName" maxlength="20" required autocomplete="nickname" placeholder="Your name" aria-label="Your name" />
         <button class="btn primary block" type="submit">Join room</button>
@@ -271,18 +294,18 @@ function homeView() {
   const invite = (new URLSearchParams(location.search).get('room') || '').trim().toUpperCase().slice(0, 5);
   const r = meta?.rules;
   app.innerHTML = `<div class="home">
-    <header class="topbar plain"><div class="topbar-in">${brand}</div></header>
+    <header class="topbar plain"><div class="topbar-in">${brandHtml()}</div></header>
     <main class="home-main">
       <section class="intro">
         <span class="pill"><span class="live-dot"></span>Live multiplayer auction</span>
-        <h1>Run your own IPL auction with friends</h1>
-        <p class="lede">Create a room, share the link, claim a franchise and bid for players in real time. Mega auction, legends or a quick mock auction. Last paddle up wins.</p>
+        <h1>Run your own IPL or football auction with friends</h1>
+        <p class="lede">Create a room, share the link, claim a team and bid for players in real time. IPL mega auction, legends, a 2026 mock auction or a European football auction. Last paddle up wins.</p>
         <dl class="facts">
-          <div><dt>Players</dt><dd>${meta ? meta.players.length : '360+'}</dd></div>
-          <div><dt>Auction modes</dt><dd>${meta ? Object.keys(meta.modes).length : 4}</dd></div>
+          <div><dt>Players</dt><dd id="factPlayers">${meta ? meta.players.length.toLocaleString() : '1,300+'}</dd></div>
+          <div><dt>Auction modes</dt><dd id="factModes">${meta ? Object.keys(meta.modes).length : 5}</dd></div>
           <div><dt>Players / room</dt><dd>${r ? r.maxMembers : 10}</dd></div>
         </dl>
-        <div class="logo-row" aria-hidden="true">${(meta?.teams || []).map(t => badge(t)).join('')}</div>
+        <div class="logo-row" aria-hidden="true">${homeLogos()}</div>
       </section>
       <section class="card entry">
         <div class="seg" role="tablist">
@@ -290,6 +313,11 @@ function homeView() {
           <button role="tab" class="${homeTab === 'join' ? 'on' : ''}" aria-selected="${homeTab === 'join'}" data-tab="join">Join room</button>
         </div>
         <form id="createForm" ${homeTab === 'create' ? '' : 'hidden'}>
+          <label>Sport</label>
+          <div class="sport-pick" role="radiogroup" aria-label="Sport">
+            <button type="button" role="radio" class="${homeSport === 'cricket' ? 'on' : ''}" aria-checked="${homeSport === 'cricket'}" data-sport="cricket"><span aria-hidden="true">🏏</span>Cricket</button>
+            <button type="button" role="radio" class="${homeSport === 'football' ? 'on' : ''}" aria-checked="${homeSport === 'football'}" data-sport="football"><span aria-hidden="true">⚽</span>Football</button>
+          </div>
           <label for="cName">Your name</label>
           <input id="cName" maxlength="20" required autocomplete="nickname" placeholder="e.g. Nikhil" />
           <button class="btn primary block" type="submit">Create room</button>
@@ -335,9 +363,15 @@ function homeView() {
     app.querySelectorAll('[data-tab]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', x === b); });
     createForm.hidden = homeTab !== 'create'; joinForm.hidden = homeTab !== 'join';
   });
+  app.querySelectorAll('[data-sport]').forEach(b => b.onclick = () => {
+    homeSport = b.dataset.sport;
+    app.querySelectorAll('[data-sport]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+    app.querySelector('.logo-row').innerHTML = homeLogos();
+    app.querySelector('.topbar.plain .topbar-in').innerHTML = brandHtml();
+  });
   createForm.onsubmit = e => {
     e.preventDefault();
-    socket.emit('create', { name: cName.value }, res => res.ok ? save(res) : (cErr.textContent = res.error));
+    socket.emit('create', { name: cName.value, sport: homeSport }, res => res.ok ? save(res) : (cErr.textContent = res.error));
   };
   joinForm.onsubmit = e => {
     e.preventDefault();
@@ -362,26 +396,15 @@ function lobbyView() {
     <div class="page-head">
       <div>
         <h1>Set up the auction</h1>
-        <p class="muted">${isHost() ? 'Pick the auction mode, then everyone claims a franchise.' : 'The host picks the auction mode. Claim your franchise below.'}</p>
+        <p class="muted">${isHost() ? `Pick the auction mode, then everyone claims a ${TEAM_WORD()}.` : `The host picks the auction mode. Claim your ${TEAM_WORD()} below.`}</p>
       </div>
     </div>
     <div class="lobby">
       <div class="lobby-main">
       <div class="section-head"><h2>Auction mode</h2>${isHost() ? '' : '<span class="muted small">Chosen by the host</span>'}</div>
       ${modePicker()}
-      <div class="section-head"><h2>Choose your franchise</h2><span class="pill">${claimed}/10 claimed</span></div>
-      <section class="team-grid">
-        ${state.teams.map(t => {
-          const taken = t.owner && t.id !== mine;
-          const status = t.id === mine ? 'Your team' : t.owner ? esc(t.owner) : 'Available';
-          return `<button class="team-card ${t.id === mine ? 'mine' : ''}" style="${teamVars(t)}"
-            data-act="pick" data-team="${t.id}" ${taken ? 'disabled' : ''} title="${t.id === mine ? 'Tap to release' : ''}">
-            ${badge(t, 'md')}
-            <span class="tc-text"><strong>${esc(t.name)}</strong><span class="tc-status ${t.owner ? 'taken' : ''}">${status}</span>
-              ${t.squad.length ? `<span class="tc-kept">${t.squad.length} retained · ${fmt(t.purse)} left</span>` : ''}</span>
-          </button>`;
-        }).join('')}
-      </section>
+      <div class="section-head"><h2>Choose your ${TEAM_WORD()}</h2><span class="pill">${claimed}/${Math.min(state.teams.length, r.maxMembers)} claimed</span></div>
+      ${teamPicker(mine)}
       </div>
       <aside class="side">
         <section class="card invite-card">
@@ -413,7 +436,7 @@ function lobbyView() {
             <div><dt>Players in pool</dt><dd>${meta.modes[state.mode].size}</dd></div>
             <div><dt>Purse</dt><dd class="purse-dd">${purseSummary()}${isHost() ? '<button class="link accent" data-act="purses">Edit</button>' : ''}</dd></div>
             <div><dt>Squad size</dt><dd>Up to ${r.maxSquad}</dd></div>
-            <div><dt>Overseas</dt><dd>Up to ${r.maxOverseas}</dd></div>
+            ${hasOverseas() ? `<div><dt>Overseas</dt><dd>Up to ${r.maxOverseas}</dd></div>` : ''}
             <div class="stack"><dt>Bid timer</dt><dd>${timerControl(false)}</dd></div>
           </dl>
           ${isHost()
@@ -428,10 +451,30 @@ function lobbyView() {
   </main>`;
 }
 
+// Team cards; football clubs are grouped by country.
+function teamPicker(mine) {
+  const card = t => {
+    const taken = t.owner && t.id !== mine;
+    const status = t.id === mine ? 'Your team' : t.owner ? esc(t.owner) : 'Available';
+    return `<button class="team-card ${t.id === mine ? 'mine' : ''}" style="${teamVars(t)}"
+      data-act="pick" data-team="${t.id}" ${taken ? 'disabled' : ''} title="${t.id === mine ? 'Tap to release' : esc(t.name)}">
+      ${badge(t, 'md')}
+      <span class="tc-text"><strong>${esc(t.name)}</strong><span class="tc-status ${t.owner ? 'taken' : ''}">${status}</span>
+        ${t.squad.length ? `<span class="tc-kept">${t.squad.length} retained · ${fmt(t.purse)} left</span>` : ''}</span>
+    </button>`;
+  };
+  const leagues = [...new Set(state.teams.map(t => t.league).filter(Boolean))];
+  if (!leagues.length) return `<section class="team-grid">${state.teams.map(card).join('')}</section>`;
+  return leagues.map(l => `<div class="league">
+    <h3 class="league-name">${esc(l)}</h3>
+    <section class="team-grid compact">${state.teams.filter(t => t.league === l).map(card).join('')}</section>
+  </div>`).join('');
+}
+
 function modePicker() {
   const host = isHost();
   return `<section class="modes">
-    ${Object.entries(meta.modes).map(([k, m]) => `<button class="mode-card ${state.mode === k ? 'on' : ''}" data-act="mode" data-mode="${k}"
+    ${Object.entries(meta.modes).filter(([, m]) => m.sport === state.sport).map(([k, m]) => `<button class="mode-card ${state.mode === k ? 'on' : ''}" data-act="mode" data-mode="${k}"
         ${host ? '' : 'disabled'} aria-pressed="${state.mode === k}">
       <span class="mode-icon" aria-hidden="true">${MODE_ICON[k] || '🏏'}</span>
       <span class="mode-text">
@@ -479,20 +522,20 @@ function joinStrip() {
   const free = state.teams.filter(t => !t.owner);
   return `<div class="join-strip">
     <div><strong>You don’t have a team yet</strong>
-    <p class="muted small">${free.length ? 'Pick a free franchise to start bidding with its purse.' : 'All 10 franchises are taken, so you’re watching this one.'}</p></div>
+    <p class="muted small">${free.length ? `Pick a free ${TEAM_WORD()} to start bidding with its purse.` : `Every ${TEAM_WORD()} is taken, so you’re watching this one.`}</p></div>
     ${free.length ? `<div class="join-teams">${free.map(t => `<button class="join-team" data-act="pick" data-team="${t.id}" title="${esc(t.name)}">${badge(t, 'sm')}<span>${esc(t.id)}</span></button>`).join('')}</div>` : ''}
   </div>`;
 }
 
 function bidState() {
   const m = me(), t = m?.teamId && team(m.teamId);
-  if (!t) return { ok: false, hint: 'Pick a free franchise to start bidding.' };
+  if (!t) return { ok: false, hint: `Pick a free ${TEAM_WORD()} to start bidding.` };
   if (state.paused) return { ok: false, hint: 'The host has paused the auction.' };
   if (state.status !== 'live') return { ok: false, hint: 'Next player coming up…' };
   if (state.leader === t.id) return { ok: false, hint: 'You hold the highest bid.' };
   if (t.purse < state.nextBid) return { ok: false, hint: 'Not enough left in your purse.' };
   if (t.squad.length >= state.rules.maxSquad) return { ok: false, hint: 'Your squad is full.' };
-  if (state.lot.overseas && t.squad.filter(p => p.overseas).length >= state.rules.maxOverseas) return { ok: false, hint: 'You’ve reached the overseas limit.' };
+  if (hasOverseas() && state.lot.overseas && t.squad.filter(p => p.overseas).length >= state.rules.maxOverseas) return { ok: false, hint: 'You’ve reached the overseas limit.' };
   return { ok: true, hint: `${fmt(t.purse)} left · press Space to bid` };
 }
 
@@ -520,7 +563,8 @@ function auctionView() {
             <h1 class="lot-name">${esc(lot.name)}</h1>
             <div class="tags">
               <span class="tag">${ROLE[lot.role]}</span>
-              <span class="tag ${lot.overseas ? 'os' : ''}">${esc(lot.country)}${lot.overseas ? ' · Overseas' : ''}</span>
+              ${lot.position ? `<span class="tag">${esc(lot.position)}</span><span class="tag rating-tag">★ ${lot.rating ?? '–'}</span>` : ''}
+              ${lot.country ? `<span class="tag ${lot.overseas ? 'os' : ''}">${esc(lot.country)}${lot.overseas ? ' · Overseas' : ''}</span>` : ''}
               ${lot.capped === false ? '<span class="tag">Uncapped</span>' : ''}
               ${lot.prevTeam ? `<span class="tag">Last IPL team: ${esc(lot.prevTeam)}</span>` : ''}
             </div>
@@ -572,6 +616,7 @@ function auctionView() {
 // IPL career numbers from the player lists: batting for batters, bowling for bowlers, a mix for all-rounders.
 function lotStats(p) {
   const s = p.stats;
+  if (p.position) return `<div><dt>Position</dt><dd>${esc(p.position)}</dd></div><div><dt>Rating</dt><dd>${p.rating ?? '–'}</dd></div>`;
   if (!s) return `<div><dt>Role</dt><dd>${ROLE[p.role]}</dd></div><div><dt>Nationality</dt><dd>${p.overseas ? 'Overseas' : 'Indian'}</dd></div>`;
   const items = [];
   if (s.m != null) items.push(['IPL matches', s.m]);
@@ -601,25 +646,32 @@ function purseSummary() {
 // Lives outside #app so state updates don't wipe what the host is typing.
 function openPurseEditor() {
   const modal = document.getElementById('modal');
-  const cr = l => +(l / 100).toFixed(2);
+  // Cricket purses are edited in crore (stored as lakhs); football in €M as stored.
+  const fb = isFootball();
+  const U = fb ? { factor: 1, max: 10000, step: 1, pre: '€', post: 'M', unit: '€M', chips: [500, 750, 1000, 1500], eg: 1000 }
+               : { factor: 100, max: 1000, step: 0.05, pre: '₹', post: 'cr', unit: 'crore', chips: [80, 100, 120, 150], eg: 120 };
+  const cr = l => +(l / U.factor).toFixed(2);
+  // 50 football clubs is too many to list; only clubs someone owns matter there.
+  const teams = fb ? state.teams.filter(t => t.owner) : state.teams;
   modal.innerHTML = `<div class="sheet-backdrop" id="purseSheet">
     <section class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="purseTitle">
       <button class="icon-btn sm sheet-close" data-close type="button" aria-label="Close">✕</button>
       <h2 id="purseTitle">Edit purses</h2>
-      <p class="muted small">Amounts in crore. ${state.phase === 'auction' ? 'Changes apply straight away and are shown in the activity feed. Money already spent stays spent.' : 'Applies to this auction only.'}</p>
+      <p class="muted small">Amounts in ${U.unit}. ${state.phase === 'auction' ? 'Changes apply straight away and are shown in the activity feed. Money already spent stays spent.' : 'Applies to this auction only.'}</p>
       <div class="purse-all">
         <label for="pAll">Set every team to</label>
         <div class="purse-all-row">
-          <input id="pAll" type="number" min="0" max="1000" step="0.05" inputmode="decimal" placeholder="e.g. 120" />
+          <input id="pAll" type="number" min="0" max="${U.max}" step="${U.step}" inputmode="decimal" placeholder="e.g. ${U.eg}" />
           <button class="btn sm" type="button" id="pAllBtn">Fill all</button>
         </div>
-        <div class="purse-chips">${[80, 100, 120, 150].map(v => `<button class="chip" type="button" data-v="${v}">₹${v} cr</button>`).join('')}</div>
+        <div class="purse-chips">${U.chips.map(v => `<button class="chip" type="button" data-v="${v}">${U.pre}${v}${fb ? 'M' : ' cr'}</button>`).join('')}</div>
       </div>
       <div class="purse-list">
-        ${state.teams.map(t => `<label class="purse-row">
+        ${teams.length ? '' : `<p class="empty">No ${TEAM_WORD()}s claimed yet.</p>`}
+        ${teams.map(t => `<label class="purse-row">
           ${badge(t, 'sm')}
           <span class="pr-name"><b>${esc(t.name)}</b><span class="muted small">${t.owner ? esc(t.owner) : 'No owner'}${t.squad.length ? ` · ${t.squad.length} players` : ''}</span></span>
-          <span class="pr-input"><span class="muted">₹</span><input type="number" min="0" max="1000" step="0.05" inputmode="decimal" data-team="${t.id}" value="${cr(t.purse)}" aria-label="${esc(t.name)} purse in crore" /><span class="muted">cr</span></span>
+          <span class="pr-input"><span class="muted">${U.pre}</span><input type="number" min="0" max="${U.max}" step="${U.step}" inputmode="decimal" data-team="${t.id}" value="${cr(t.purse)}" aria-label="${esc(t.name)} purse in ${U.unit}" /><span class="muted">${U.post}</span></span>
         </label>`).join('')}
       </div>
       <div class="error" id="pErr"></div>
@@ -643,8 +695,8 @@ function openPurseEditor() {
     for (const i of inputs) {
       if (i.value === '') continue;
       const v = Number(i.value);
-      if (!(v >= 0 && v <= 1000)) return (pErr.textContent = 'Each purse must be between ₹0 and ₹1000 cr.');
-      purses[i.dataset.team] = Math.round(v * 100);
+      if (!(v >= 0 && v <= U.max)) return (pErr.textContent = `Each purse must be between ${U.pre}0 and ${U.pre}${U.max}${fb ? 'M' : ' cr'}.`);
+      purses[i.dataset.team] = Math.round(v * U.factor);
     }
     socket.emit('setPurses', { purses }, res => {
       if (!res?.ok) return (pErr.textContent = res?.error || 'Could not save purses.');
@@ -657,7 +709,7 @@ function openPurseEditor() {
 // ---------- teams panel (tap a team to see its squad by role) ----------
 function squadGroups(t) {
   if (!t.squad.length) return '<p class="sg-empty">No players bought yet.</p>';
-  return ROLE_GROUPS.map(([role, label]) => {
+  return roleGroups().map(([role, label]) => {
     const ps = t.squad.filter(p => p.role === role).sort((a, b) => b.price - a.price);
     return `<div class="sg">
       <div class="sg-head"><span>${label}</span><span>${ps.length}</span></div>
@@ -671,7 +723,7 @@ function teamsCard() {
   const r = state.rules;
   return `<section class="card">
     <div class="card-head"><h2>Teams</h2>
-      <div class="head-links">${isHost() ? '<button class="link accent" data-act="purses">Edit purses</button>' : ''}<button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">Playing XIs</button></div>
+      <div class="head-links">${isHost() ? '<button class="link accent" data-act="purses">Edit purses</button>' : ''}<button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">${XI()}s</button></div>
     </div>
     <ul class="purses">
       ${state.teams.filter(t => t.owner).map(t => {
@@ -682,7 +734,7 @@ function teamsCard() {
             <div class="p-info">
               <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span></span><span class="money">${fmt(t.purse)}</span></div>
               <div class="meter"><span style="width:${(t.purse / (t.startPurse || 1)) * 100}%"></span></div>
-              <div class="p-sub">${t.squad.length}/${r.maxSquad} players · ${t.squad.filter(p => p.overseas).length}/${r.maxOverseas} overseas</div>
+              <div class="p-sub">${t.squad.length}/${r.maxSquad} players${hasOverseas() ? ` · ${t.squad.filter(p => p.overseas).length}/${r.maxOverseas} overseas` : ''}</div>
             </div>
             <span class="chev" aria-hidden="true">${ICON.back}</span>
           </button>
@@ -696,7 +748,7 @@ function teamsCard() {
 // ---------- auction board: upcoming / sold / unsold / leaderboard ----------
 function miniPlayer(p, right) {
   return `<li class="mp">${avatar(p, 'sm')}
-    <span class="r-name">${esc(p.name)}<span class="r-sub">${ROLE[p.role]}${p.overseas ? ` · <span class="os-text">${esc(p.country)}</span>` : ''}</span></span>
+    <span class="r-name">${esc(p.name)}<span class="r-sub">${playerSub(p)}</span></span>
     ${right}</li>`;
 }
 
@@ -730,6 +782,11 @@ function boardBody() {
   return leaderboard();
 }
 
+const avgRating = t => {
+  const r = t.squad.filter(p => p.rating != null);
+  return r.length ? (r.reduce((s, p) => s + p.rating, 0) / r.length).toFixed(1) : '–';
+};
+
 function leaderboard() {
   const teams = state.teams.filter(t => t.owner);
   if (!teams.length) return '<p class="empty">No teams yet.</p>';
@@ -737,12 +794,12 @@ function leaderboard() {
   const ranked = teams.slice().sort((a, b) => value(b) - value(a) || b.squad.length - a.squad.length);
   const top = state.sold.slice().sort((a, b) => b.price - a.price).slice(0, 5);
   return `<table class="lb">
-      <thead><tr><th>#</th><th>Team</th><th>Players</th><th>OS</th><th>Squad value</th><th>Purse left</th></tr></thead>
+      <thead><tr><th>#</th><th>Team</th><th>Players</th><th>${hasOverseas() ? 'OS' : 'Avg rating'}</th><th>Squad value</th><th>Purse left</th></tr></thead>
       <tbody>${ranked.map((t, i) => `<tr class="${t.id === me()?.teamId ? 'me' : ''}">
         <td class="rank">${i + 1}</td>
         <td><span class="lb-team">${badge(t, 'xs')}<b>${esc(t.id)}</b><span class="muted">${esc(t.owner)}</span></span></td>
         <td>${t.squad.length}/${state.rules.maxSquad}</td>
-        <td>${t.squad.filter(p => p.overseas).length}</td>
+        <td>${hasOverseas() ? t.squad.filter(p => p.overseas).length : avgRating(t)}</td>
         <td><b>${fmt(value(t))}</b></td>
         <td>${fmt(t.purse)}</td>
       </tr>`).join('')}</tbody>
@@ -775,7 +832,7 @@ function subNav() {
   const tab = (v, label) => `<button class="${cur === v ? 'on' : ''}" data-act="${v}">${label}</button>`;
   return `<nav class="subnav">
     ${state.phase === 'auction' ? `<button class="btn sm" data-act="board">${ICON.back}Back to auction</button>` : ''}
-    <div class="seg">${tab('squads', 'Squads')}${tab('xi', 'Playing XIs')}${tab('summary', 'Summary')}</div>
+    <div class="seg">${tab('squads', 'Squads')}${tab('xi', `${XI()}s`)}${tab('summary', 'Summary')}</div>
   </nav>`;
 }
 
@@ -789,7 +846,7 @@ function summaryPage() {
   </main>`;
 }
 
-const playerLine = p => `${avatar(p, 'sm')}<span class="r-name">${esc(p.name)}<span class="r-sub">${ROLE[p.role]}${p.overseas ? ' · Overseas' : ''}</span></span>`;
+const playerLine = p => `${avatar(p, 'sm')}<span class="r-name">${esc(p.name)}<span class="r-sub">${playerSub(p)}</span></span>`;
 
 function teamHead(t, action = '') {
   return `<header class="team-head" style="${teamVars(t)}">
@@ -805,7 +862,7 @@ function squadsPage(final) {
   app.innerHTML = `${topBar()}
   <main class="page">
     <div class="page-head"><div><h1>${final ? 'Final squads' : 'Squads so far'}</h1>
-      <p class="muted">${final ? 'The auction is complete. Pick your Playing XI from the Playing XIs tab.' : 'Updated live as players are sold.'}</p></div></div>
+      <p class="muted">${final ? `The auction is complete. Pick your ${XI()} from the ${XI()}s tab.` : 'Updated live as players are sold.'}</p></div></div>
     ${subNav()}
     <div class="grid-cards">
       ${teams.map(t => `<section class="card team-card-lg">
@@ -832,14 +889,15 @@ function resultsView() {
 }
 
 // ---------- Playing XI ----------
-const ROLE_ORDER = { WK: 0, BAT: 1, AR: 2, BOWL: 3 };
-const impactSlot = p => `<div class="impact"><span class="ip-tag">Impact Player</span>${p ? playerLine(p) : '<span class="muted small">Not chosen</span>'}</div>`;
+const ROLE_ORDER = { WK: 0, BAT: 1, AR: 2, BOWL: 3, GK: 0, DEF: 1, MID: 2, FWD: 3 };
+// Football has no Impact Player, so the slot is left out.
+const impactSlot = p => (isFootball() ? '' : `<div class="impact"><span class="ip-tag">Impact Player</span>${p ? playerLine(p) : '<span class="muted small">Not chosen</span>'}</div>`);
 
 function xiPage() {
   const mine = me()?.teamId;
   app.innerHTML = `${topBar()}
   <main class="page">
-    <div class="page-head"><div><h1>Playing XIs</h1><p class="muted">Each owner names 11 players in batting order plus one Impact Player.</p></div></div>
+    <div class="page-head"><div><h1>${XI()}s</h1><p class="muted">${isFootball() ? 'Each owner names a starting 11, goalkeeper first.' : 'Each owner names 11 players in batting order plus one Impact Player.'}</p></div></div>
     ${subNav()}
     <div class="grid-cards">
       ${state.teams.filter(t => t.owner).map(t => {
@@ -863,8 +921,15 @@ function xiCheck(t, d) {
   const xi = d.xi.map(id => byId.get(id));
   const os = [...d.xi, d.impact].filter(id => byId.get(id)?.overseas).length;
   const errors = [], notes = [];
-  if (os > r.xiMaxOverseas) errors.push(`Too many overseas players: ${os} picked, ${r.xiMaxOverseas} allowed including the Impact Player.`);
   if (d.xi.length < r.xiSize) notes.push(`${r.xiSize - d.xi.length} more player${r.xiSize - d.xi.length === 1 ? '' : 's'} to pick.`);
+  if (isFootball()) {
+    const gks = xi.filter(p => p.role === 'GK').length;
+    if (d.xi.length && !gks) notes.push('No goalkeeper in the XI.');
+    if (gks > 1) notes.push('More than one goalkeeper in the XI.');
+    if (d.xi.length === r.xiSize && xi.filter(p => p.role === 'DEF').length < 3) notes.push('Fewer than 3 defenders.');
+    return { errors, notes, os };
+  }
+  if (os > r.xiMaxOverseas) errors.push(`Too many overseas players: ${os} picked, ${r.xiMaxOverseas} allowed including the Impact Player.`);
   if (d.xi.length && !xi.some(p => p.role === 'WK')) notes.push('No wicket-keeper in the XI.');
   if (d.xi.length === r.xiSize && xi.filter(p => p.role === 'BOWL' || p.role === 'AR').length < 5) notes.push('Fewer than 5 bowling options.');
   if (d.impact == null) notes.push('No Impact Player chosen yet.');
@@ -881,7 +946,7 @@ function xiEditPage() {
   const pool = t.squad.slice().sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || b.price - a.price);
   app.innerHTML = `${topBar()}
   <main class="page">
-    <div class="page-head"><div><h1>Pick your Playing XI</h1><p class="muted">${esc(t.name)} · tap <b>XI</b> to add to the batting order, <b>Impact</b> for your Impact Player.</p></div></div>
+    <div class="page-head"><div><h1>Pick your ${XI()}</h1><p class="muted">${esc(t.name)} · ${isFootball() ? 'tap <b>XI</b> to add a player to your starting line-up.' : 'tap <b>XI</b> to add to the batting order, <b>Impact</b> for your Impact Player.'}</p></div></div>
     ${subNav()}
     <div class="xi-editor">
       <section class="card">
@@ -890,13 +955,13 @@ function xiEditPage() {
           const inXI = draft.xi.includes(p.id), isIP = draft.impact === p.id;
           return `<li class="${inXI || isIP ? 'picked' : ''}">${playerLine(p)}
             <button class="chip ${inXI ? 'on' : ''}" data-act="xi-toggle" data-id="${p.id}" aria-pressed="${inXI}">XI</button>
-            <button class="chip ip ${isIP ? 'on' : ''}" data-act="xi-impact" data-id="${p.id}" aria-pressed="${isIP}">Impact</button>
+            ${isFootball() ? '' : `<button class="chip ip ${isIP ? 'on' : ''}" data-act="xi-impact" data-id="${p.id}" aria-pressed="${isIP}">Impact</button>`}
           </li>`;
         }).join('')}</ul>` : '<p class="empty">Buy some players first.</p>'}
       </section>
       <section class="card">
-        <div class="card-head"><h2>Batting order</h2>
-          <span class="counts"><span>${draft.xi.length}/${r.xiSize}</span><span class="${os > r.xiMaxOverseas ? 'bad' : ''}">${os}/${r.xiMaxOverseas} overseas</span></span>
+        <div class="card-head"><h2>${isFootball() ? 'Line-up' : 'Batting order'}</h2>
+          <span class="counts"><span>${draft.xi.length}/${r.xiSize}</span>${isFootball() ? '' : `<span class="${os > r.xiMaxOverseas ? 'bad' : ''}">${os}/${r.xiMaxOverseas} overseas</span>`}</span>
         </div>
         ${draft.xi.length ? `<ol class="roster numbered">${draft.xi.map((id, i) => {
           const p = byId.get(id);
@@ -1000,7 +1065,7 @@ app.addEventListener('click', e => {
   else if (act === 'xi-save') {
     socket.emit('setXI', draft, res => {
       if (!res?.ok) return toast(res?.error || 'Could not save your XI.');
-      toast('Playing XI announced.'); view = 'xi'; draft = null; render(true);
+      toast(`${XI()} announced.`); view = 'xi'; draft = null; render(true);
     });
   }
   else socket.emit(act); // start, bid, pause, skip, end

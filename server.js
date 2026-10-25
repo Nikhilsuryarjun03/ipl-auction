@@ -3,7 +3,7 @@ const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
-const { RULES, TEAMS, PLAYERS, MODES } = require('./data');
+const { RULES, PLAYERS, MODES, SPORTS } = require('./data');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,16 +13,24 @@ app.use(express.static(path.join(__dirname, 'public')));
 const rooms = new Map();
 
 // ---------- helpers ----------
-const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
-const increment = l => (l < 100 ? 5 : l < 200 ? 10 : l < 500 ? 20 : 25);
+// Money: lakhs for cricket (100 = ₹1 cr), €M for football.
+const fmtINR = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
+const fmtEUR = m => `€${m}M`;
+const money = room => (room.sport === 'football' ? fmtEUR : fmtINR);
+const increment = (l, sport) => sport === 'football'
+  ? (l < 20 ? 1 : l < 50 ? 2 : l < 100 ? 5 : 10)
+  : (l < 100 ? 5 : l < 200 ? 10 : l < 500 ? 20 : 25);
+const nextBid = room => (room.bid == null ? room.lot.base : room.bid + increment(room.bid, room.sport));
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const clean = (s, n = 20) => String(s || '').replace(/[<>]/g, '').trim().slice(0, n);
-const teamName = id => TEAMS.find(t => t.id === id).name;
+const teamsOf = room => SPORTS[room.sport].teams;
+const teamName = (room, id) => teamsOf(room).find(t => t.id === id).name;
 
 // Sent once per connection: everything the client needs that never changes during a room.
 const META = {
-  teams: TEAMS, rules: RULES, players: PLAYERS,
-  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size, retentions: !!m.retentions }]))
+  rules: RULES, players: PLAYERS,
+  sports: Object.fromEntries(Object.entries(SPORTS).map(([k, s]) => [k, { name: s.name, tag: s.tag, teams: s.teams, defaultMode: s.defaultMode }])),
+  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size, retentions: !!m.retentions, sport: m.sport }]))
 };
 
 function newCode() {
@@ -36,10 +44,10 @@ function rulesFor(room) {
   return { ...RULES, mode: room.mode, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, bidSeconds: room.bidSeconds };
 }
 
-function createRoom() {
+function createRoom(sport) {
   const room = {
     code: newCode(), hostId: null, phase: 'lobby', // lobby | auction | finished
-    mode: 'mega', bidSeconds: RULES.bidSeconds,
+    sport, mode: SPORTS[sport].defaultMode, bidSeconds: RULES.bidSeconds,
     members: new Map(), purse: {}, startPurse: {}, squads: {}, xi: {},
     queue: [], unsold: [], unsoldFinal: [], unsoldRound: false, soldLog: [],
     lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | closed
@@ -53,7 +61,8 @@ function createRoom() {
 // Fresh purses and squads for the room's mode. In the mock auction teams start with their real retentions.
 function resetTeams(room) {
   const mode = MODES[room.mode];
-  TEAMS.forEach(t => {
+  room.purse = {}; room.startPurse = {}; room.squads = {}; room.xi = {};
+  teamsOf(room).forEach(t => {
     const kept = mode.retentions?.[t.id];
     room.purse[t.id] = room.startPurse[t.id] = kept ? kept.purse : mode.purse;
     room.squads[t.id] = kept ? kept.players.map(p => ({ ...p })) : [];
@@ -82,12 +91,12 @@ function publicState(room) {
   const owners = {};
   room.members.forEach(m => { if (m.teamId) owners[m.teamId] = m.name; });
   return {
-    code: room.code, hostId: room.hostId, phase: room.phase, mode: room.mode, rules: rulesFor(room),
+    code: room.code, hostId: room.hostId, phase: room.phase, sport: room.sport, mode: room.mode, rules: rulesFor(room),
     members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
-    teams: TEAMS.map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
+    teams: teamsOf(room).map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
     status: room.status, result: room.result, paused: room.paused,
-    nextBid: room.lot ? (room.bid == null ? room.lot.base : room.bid + increment(room.bid)) : null,
+    nextBid: room.lot ? nextBid(room) : null,
     remaining: room.queue.length, unsoldRound: room.unsoldRound,
     upcoming: upcomingSets(room),
     sold: room.soldLog,
@@ -143,7 +152,7 @@ function closeLot(room) {
     room.purse[room.leader] -= room.bid;
     room.soldLog.push({ id: p.id, teamId: room.leader, price: room.bid });
     room.result = { sold: true, teamId: room.leader, price: room.bid };
-    addLog(room, `${p.name} sold to ${teamName(room.leader)} for ${fmt(room.bid)}`, 'sold', { teamId: room.leader });
+    addLog(room, `${p.name} sold to ${teamName(room, room.leader)} for ${money(room)(room.bid)}`, 'sold', { teamId: room.leader });
   } else {
     if (room.unsoldRound) room.unsoldFinal.push(p.id);
     else room.unsold.push(p);
@@ -166,14 +175,14 @@ function finish(room) {
 }
 
 // Returns an error message, or null if the Playing XI is allowed.
-function checkXI(squad, xi, impact) {
+function checkXI(squad, xi, impact, maxOverseas) {
   const byId = new Map(squad.map(p => [p.id, p]));
   if (xi.length > RULES.xiSize) return `Pick at most ${RULES.xiSize} players.`;
   if (xi.some(id => !byId.has(id))) return 'You can only pick players from your squad.';
   if (impact != null && !byId.has(impact)) return 'The Impact Player must be in your squad.';
   if (impact != null && xi.includes(impact)) return 'The Impact Player can’t also be in the XI.';
   const overseas = [...xi, impact].filter(id => byId.get(id)?.overseas).length;
-  if (overseas > RULES.xiMaxOverseas) return `Only ${RULES.xiMaxOverseas} overseas players allowed, counting the Impact Player.`;
+  if (maxOverseas != null && overseas > maxOverseas) return `Only ${maxOverseas} overseas players allowed, counting the Impact Player.`;
   return null;
 }
 
@@ -182,11 +191,11 @@ function canBid(room, teamId) {
   if (!teamId) return 'Pick a team to bid.';
   if (room.leader === teamId) return 'You already hold the top bid.';
   const rules = rulesFor(room);
-  const amount = room.bid == null ? room.lot.base : room.bid + increment(room.bid);
+  const amount = nextBid(room);
   const squad = room.squads[teamId];
   if (room.purse[teamId] < amount) return 'Not enough left in your purse.';
   if (squad.length >= rules.maxSquad) return 'Your squad is full.';
-  if (room.lot.overseas && squad.filter(p => p.overseas).length >= rules.maxOverseas) return 'Overseas limit reached.';
+  if (rules.maxOverseas != null && room.lot.overseas && squad.filter(p => p.overseas).length >= rules.maxOverseas) return 'Overseas limit reached.';
   return null;
 }
 
@@ -206,9 +215,9 @@ io.on('connection', socket => {
     broadcast(r);
   }
 
-  socket.on('create', ({ name } = {}, cb) => {
+  socket.on('create', ({ name, sport } = {}, cb) => {
     name = clean(name); if (!name) return cb?.({ ok: false, error: 'Enter your name.' });
-    const r = createRoom();
+    const r = createRoom(SPORTS[sport] ? sport : 'cricket');
     const m = { id: crypto.randomUUID(), name, teamId: null };
     r.members.set(m.id, m); r.hostId = m.id;
     addLog(r, `${name} created the room`, 'join', { name });
@@ -237,19 +246,19 @@ io.on('connection', socket => {
     if (r.phase === 'finished') return;
     if (teamId === null) {
       if (r.phase !== 'lobby') return socket.emit('toast', 'Teams are locked once the auction starts.');
-      if (m.teamId) addLog(r, `${m.name} released ${teamName(m.teamId)}`, 'team', { name: m.name });
+      if (m.teamId) addLog(r, `${m.name} released ${teamName(r, m.teamId)}`, 'team', { name: m.name });
       m.teamId = null; return broadcast(r);
     }
-    if (!TEAMS.some(t => t.id === teamId)) return;
+    if (!teamsOf(r).some(t => t.id === teamId)) return;
     if ([...r.members.values()].some(x => x.teamId === teamId && x.id !== m.id)) return socket.emit('toast', 'That team is taken.');
     if (r.phase !== 'lobby' && m.teamId) return socket.emit('toast', 'Teams are locked once the auction starts.');
     m.teamId = teamId;
-    addLog(r, r.phase === 'auction' ? `${m.name} joined the auction as ${teamName(teamId)}` : `${m.name} picked ${teamName(teamId)}`, 'team', { name: m.name, teamId });
+    addLog(r, r.phase === 'auction' ? `${m.name} joined the auction as ${teamName(r, teamId)}` : `${m.name} picked ${teamName(r, teamId)}`, 'team', { name: m.name, teamId });
     broadcast(r);
   });
 
   socket.on('setMode', ({ mode } = {}) => {
-    const r = room(); if (!r || !isHost() || r.phase !== 'lobby' || !MODES[mode] || mode === r.mode) return;
+    const r = room(); if (!r || !isHost() || r.phase !== 'lobby' || !MODES[mode] || MODES[mode].sport !== r.sport || mode === r.mode) return;
     r.mode = mode;
     resetTeams(r);
     addLog(r, `Auction mode set to ${MODES[mode].name}`, 'host');
@@ -265,9 +274,9 @@ io.on('connection', socket => {
   socket.on('bid', () => {
     const r = room(), m = member(); if (!r || !m) return;
     const err = canBid(r, m.teamId); if (err) return socket.emit('toast', err);
-    r.bid = r.bid == null ? r.lot.base : r.bid + increment(r.bid);
+    r.bid = nextBid(r);
     r.leader = m.teamId; r.timeLeft = r.bidSeconds;
-    addLog(r, `${m.teamId} bid ${fmt(r.bid)} for ${r.lot.name}`, 'bid', { teamId: m.teamId, name: m.name });
+    addLog(r, `${m.teamId} bid ${money(r)(r.bid)} for ${r.lot.name}`, 'bid', { teamId: m.teamId, name: m.name });
     broadcast(r);
   });
 
@@ -287,10 +296,11 @@ io.on('connection', socket => {
     if (!r || !m?.teamId || r.phase === 'lobby') return cb?.({ ok: false, error: 'You need a team to pick a Playing XI.' });
     xi = Array.isArray(xi) ? [...new Set(xi.map(Number))] : [];
     impact = impact == null ? null : Number(impact);
-    const err = checkXI(r.squads[m.teamId], xi, impact);
+    if (r.sport === 'football') impact = null; // football has no Impact Player or overseas limit
+    const err = checkXI(r.squads[m.teamId], xi, impact, r.sport === 'football' ? null : RULES.xiMaxOverseas);
     if (err) return cb?.({ ok: false, error: err });
     r.xi[m.teamId] = { xi, impact };
-    addLog(r, `${teamName(m.teamId)} announced their Playing XI`, 'team', { teamId: m.teamId });
+    addLog(r, `${teamName(r, m.teamId)} announced their ${r.sport === 'football' ? 'Starting' : 'Playing'} XI`, 'team', { teamId: m.teamId });
     broadcast(r);
     cb?.({ ok: true });
   });
@@ -310,19 +320,21 @@ io.on('connection', socket => {
   socket.on('setPurses', ({ purses } = {}, cb) => {
     const r = room(); if (!r || !isHost() || r.phase === 'finished') return cb?.({ ok: false, error: 'Only the host can edit purses.' });
     const changes = [];
-    for (const t of TEAMS) {
+    const step = SPORTS[r.sport].purseStep;
+    for (const t of teamsOf(r)) {
       const v = Number(purses?.[t.id]);
       if (purses?.[t.id] == null || !Number.isFinite(v)) continue;
-      const amount = Math.round(v / 5) * 5; // bids move in steps of ₹5 L
-      if (amount < 0 || amount > 100000) return cb?.({ ok: false, error: 'Purses must be between ₹0 and ₹1000 cr.' });
+      const amount = Math.round(v / step) * step; // cricket bids move in ₹5 L steps
+      if (amount < 0 || amount > 100000) return cb?.({ ok: false, error: 'That purse is out of range.' });
       if (amount === r.purse[t.id]) continue;
       r.startPurse[t.id] += amount - r.purse[t.id];
       r.purse[t.id] = amount;
       changes.push([t.id, amount]);
     }
     if (!changes.length) return cb?.({ ok: true });
-    const same = changes.length === TEAMS.length && changes.every(([, a]) => a === changes[0][1]);
-    addLog(r, same ? `Host set every team's purse to ${fmt(changes[0][1])}` : `Host changed purses: ${changes.map(([id, a]) => `${id} ${fmt(a)}`).join(', ')}`, 'host');
+    const same = changes.length === teamsOf(r).length && changes.every(([, a]) => a === changes[0][1]);
+    const f = money(r);
+    addLog(r, same ? `Host set every team's purse to ${f(changes[0][1])}` : `Host changed purses: ${changes.map(([id, a]) => `${id} ${f(a)}`).join(', ')}`, 'host');
     broadcast(r);
     cb?.({ ok: true });
   });

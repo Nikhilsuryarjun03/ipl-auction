@@ -40,7 +40,8 @@ const TEAMS = [
 // Pools are loaded from the CSVs in data/ by players.js. Photos come from photos.json (player name -> image URL,
 // from Wikipedia); players missing there are looked up in the browser. To use your own picture, add or edit the
 // entry in photos.json, e.g. "Virat Kohli": "/players/kohli.jpg" with the file in public/players/.
-const { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED } = require('./players');
+const { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED, FOOTBALL } = require('./players');
+const { CLUBS } = require('./clubs');
 let PHOTOS = {};
 try { PHOTOS = require('./photos.json'); } catch {}
 
@@ -48,50 +49,74 @@ try { PHOTOS = require('./photos.json'); } catch {}
 // has the same surname and first initial.
 const norm = s => s.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
 const photoKeys = Object.keys(PHOTOS).map(k => [k, norm(k).split(' ')]);
-function photoFor(name) {
+function photoFor(name, fuzzy = true) {
   if (PHOTOS[name]) return PHOTOS[name];
+  if (!fuzzy) return '';
   const words = norm(name).split(' '), surname = words[words.length - 1];
   const exact = photoKeys.find(([, w]) => w.join(' ') === words.join(' '));
   if (exact) return PHOTOS[exact[0]];
   const hits = photoKeys.filter(([, w]) => w[w.length - 1] === surname && w[0][0] === words[0][0]);
   return hits.length === 1 ? PHOTOS[hits[0][0]] : '';
 }
-const withPhoto = p => ({ ...p, img: photoFor(p.name) });
+const withPhoto = (p, fuzzy) => ({ ...p, img: photoFor(p.name, fuzzy) });
 
 // One catalogue of every player the client may need to show, keyed by id.
-const PLAYERS = [...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(withPhoto);
+// Football photos only match exact names, so a cricketer's photo never lands on a footballer.
+const PLAYERS = [
+  ...[...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(p => withPhoto({ ...p, sport: 'cricket' }, true)),
+  ...FOOTBALL.map(p => withPhoto({ ...p, sport: 'football' }, false))
+];
 const byId = new Map(PLAYERS.map(p => [p.id, p]));
 const fromCatalog = list => list.map(p => ({ ...byId.get(p.id), ...p, img: byId.get(p.id).img }));
 for (const t of Object.values(RETENTIONS)) t.players = fromCatalog(t.players);
 
+// ---------- sports ----------
+// Money is stored as whole units: lakhs for cricket (100 = ₹1 cr), €M for football.
+const SPORTS = {
+  cricket: { name: 'Cricket', tag: 'IPL', teams: TEAMS, defaultMode: 'mega', purseStep: 5 },
+  football: { name: 'Football', tag: 'Football', teams: CLUBS, defaultMode: 'football', purseStep: 1 }
+};
+
 // ---------- auction modes ----------
-// purse: starting purse in lakhs, or null when it comes from the team's retentions.
+// purse: starting purse (in the sport's units), or null when it comes from the team's retentions.
+// maxOverseas: null means no overseas limit.
 const MODES = {
   mega: {
+    sport: 'cricket',
     name: 'Mega Auction',
     desc: 'The full IPL mega auction list, set by set. Build a 25-player squad.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
     pool: () => fromCatalog(MEGA)
   },
   legendsUpgraded: {
+    sport: 'cricket',
     name: 'Legends Upgraded',
     desc: 'IPL greats from 2008 to today alongside current stars, with career stats.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
     pool: () => fromCatalog(UPGRADED)
   },
   legends: {
+    sport: 'cricket',
     name: 'IPL Legends Auction',
     desc: 'Top batters and bowlers from IPL history, 2008–2025, with career stats.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
     pool: () => fromCatalog(LEGENDS)
   },
   mock: {
+    sport: 'cricket',
     name: 'IPL 2026 Mock Auction',
     desc: 'Real 2026 retentions. Each team keeps its retained players and bids with the purse it has left.',
     purse: null, maxSquad: 25, maxOverseas: 8, retentions: RETENTIONS,
     pool: () => fromCatalog(MOCK_POOL)
+  },
+  football: {
+    sport: 'football',
+    name: 'Football Auction',
+    desc: 'Top European players by position and rating. Build a squad of up to 25 with €1000M.',
+    purse: 1000, maxSquad: 25, maxOverseas: null,
+    pool: () => fromCatalog(FOOTBALL)
   }
 };
 for (const m of Object.values(MODES)) m.size = m.pool().length;
 
-module.exports = { RULES, TEAMS, PLAYERS, MODES };
+module.exports = { RULES, TEAMS, PLAYERS, MODES, SPORTS };

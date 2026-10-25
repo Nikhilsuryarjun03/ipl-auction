@@ -1,0 +1,362 @@
+﻿order,id,name,role,basePrice,country,isCapped,isOverseas,set,position,rating
+1,fb_4,Jude Bellingham,Midfielder,30,International,true,false,Marquee,CAM,90
+2,fb_2,Kylian Mbappé,Forward,30,International,true,false,Marquee,ST,91
+3,fb_13,Lamine Yamal,Forward,30,International,true,false,Marquee,RW,89
+4,fb_8,Mohamed Salah,Forward,30,International,true,false,Marquee,RW,89
+5,fb_6,Harry Kane,Forward,30,International,true,false,Marquee,ST,89
+6,fb_34,Neymar Jr.,Forward,15,International,true,false,Marquee,LW,83
+7,fb_23,Robert Lewandowski,Forward,30,International,true,false,Marquee,ST,88
+8,fb_25,Bukayo Saka,Forward,30,International,true,false,Marquee,RW,88
+9,fb_20,Lautaro Martínez,Forward,30,International,true,false,Marquee,ST,88
+10,fb_17,Achraf Hakimi,Defender,30,International,true,false,Marquee,RB,89
+11,fb_5,Ousmane Dembélé,Forward,30,International,true,false,Marquee,RW,90
+12,fb_3,Rodri Hernández,Midfielder,30,International,true,false,Marquee,CDM,90
+13,fb_24,Jamal Musiala,Midfielder,30,International,true,false,Marquee,CAM,88
+14,fb_10,Alisson Becker,Goalkeeper,30,International,true,false,Marquee,GK,89
+15,fb_27,Declan Rice,Midfielder,30,International,true,false,Marquee,CDM,88
+16,fb_18,Joshua Kimmich,Midfielder,30,International,true,false,Marquee,CDM,89
+17,fb_26,William Saliba,Defender,30,International,true,false,Marquee,CB,88
+18,fb_31,Michael Olise,Forward,30,International,true,false,Marquee,RW,87
+19,fb_11,Virgil van Dijk,Defender,30,International,true,false,Marquee,CB,89
+20,fb_16,Raphinha Dias,Forward,30,International,true,false,Marquee,LW,89
+21,fb_1,Erling Haaland,Forward,30,International,true,false,Marquee,ST,91
+22,fb_21,Florian Wirtz,Midfielder,30,International,true,false,Marquee,CAM,88
+23,fb_14,Pedri González,Midfielder,30,International,true,false,Marquee,CM,89
+24,fb_15,Gabriel Magalhães,Defender,30,International,true,false,Marquee,CB,89
+25,fb_32,Lionel Messi,Forward,30,International,true,false,Marquee,RW,86
+26,fb_28,Cole Palmer,Midfielder,30,International,true,false,Marquee,CAM,87
+27,fb_9,Gianluigi Donnarumma,Goalkeeper,30,International,true,false,Marquee,GK,89
+28,fb_30,Bruno Fernandes,Midfielder,30,International,true,false,Marquee,CAM,87
+29,fb_19,Vitinha,Midfielder,30,International,true,false,Marquee,CM,89
+30,fb_29,Nuno Mendes,Defender,30,International,true,false,Marquee,LB,87
+31,fb_33,Cristiano Ronaldo,Forward,15,International,true,false,Marquee,ST,85
+32,fb_7,Vinícius Júnior,Forward,30,International,true,false,Marquee,LW,89
+33,fb_22,Federico Valverde,Midfielder,30,International,true,false,Marquee,CM,88
+34,fb_12,Thibaut Courtois,Goalkeeper,30,International,true,false,Marquee,GK,89
+35,fb_43,Manuel Neuer,Goalkeeper,15,International,true,false,Goalkeeper 1,GK,85
+36,fb_44,Joan Garcia,Goalkeeper,15,International,true,false,Goalkeeper 1,GK,84
+37,fb_42,Marc Andre Ter Stegen,Goalkeeper,15,International,true,false,Goalkeeper 1,GK,85
+38,fb_39,Yann Sommer,Goalkeeper,30,International,true,false,Goalkeeper 1,GK,86
+39,fb_41,Emiliano Martinez,Goalkeeper,15,International,true,false,Goalkeeper 1,GK,85
+40,fb_35,Jan Oblak,Goalkeeper,30,International,true,false,Goalkeeper 1,GK,88
+41,fb_40,Ederson Moraes,Goalkeeper,15,International,true,false,Goalkeeper 1,GK,85
+42,fb_37,Mike Maignan,Goalkeeper,30,International,true,false,Goalkeeper 1,GK,87
+43,fb_38,Gregor Kobel,Goalkeeper,30,International,true,false,Goalkeeper 1,GK,86
+44,fb_36,David Raya,Goalkeeper,30,International,true,false,Goalkeeper 1,GK,88
+45,fb_67,Rayan Cherki,Forward,10,International,true,false,Attackers 1,RW,81
+46,fb_53,Khvicha Kvaratskhelia,Forward,30,International,true,false,Attackers 1,LW,87
+47,fb_49,Viktor Gyokeres,Forward,30,International,true,false,Attackers 1,ST,86
+48,fb_61,Desire Doue,Forward,15,International,true,false,Attackers 1,RW,85
+49,fb_48,Serhou Guirassy,Forward,30,International,true,false,Attackers 1,ST,87
+50,fb_65,Rodrygo Goes,Forward,15,International,true,false,Attackers 1,RW,84
+51,fb_58,Rafael Leao,Forward,15,International,true,false,Attackers 1,LW,84
+52,fb_66,Mason Greenwood,Forward,15,International,true,false,Attackers 1,RW,83
+53,fb_63,Phil Foden,Forward,15,International,true,false,Attackers 1,RW,85
+54,fb_68,Estevao Willian,Forward,10,International,true,false,Attackers 1,RW,79
+55,fb_64,Christian Pulisic,Forward,15,International,true,false,Attackers 1,RW,85
+56,fb_45,Julian Alvarez,Forward,30,International,true,false,Attackers 1,ST,87
+57,fb_55,Luis Diaz,Forward,15,International,true,false,Attackers 1,LW,85
+58,fb_51,Hugo Ekitike,Forward,15,International,true,false,Attackers 1,ST,84
+59,fb_52,Ferran Torres,Forward,15,International,true,false,Attackers 1,ST,83
+60,fb_46,Alexander Isak,Forward,30,International,true,false,Attackers 1,ST,87
+61,fb_59,Jeremy Doku,Forward,15,International,true,false,Attackers 1,LW,82
+62,fb_62,Bryan Mbeumo,Forward,15,International,true,false,Attackers 1,RW,85
+63,fb_57,Cody Gakpo,Forward,15,International,true,false,Attackers 1,LW,84
+64,fb_60,Gabriel Martinelli,Forward,10,International,true,false,Attackers 1,LW,81
+65,fb_56,Bradley Barcola,Forward,15,International,true,false,Attackers 1,LW,84
+66,fb_47,Victor Osimhen,Forward,30,International,true,false,Attackers 1,ST,87
+67,fb_54,Nico Williams,Forward,30,International,true,false,Attackers 1,LW,86
+68,fb_50,Marcus Thuram,Forward,15,International,true,false,Attackers 1,ST,85
+69,fb_70,Dominik Szoboszlai,Midfielder,15,International,true,false,Midfielders 1,CAM,85
+70,fb_72,Bernardo Silva,Midfielder,15,International,true,false,Midfielders 1,CAM,84
+71,fb_92,Luka Modric,Midfielder,15,International,true,false,Midfielders 1,CM,84
+72,fb_75,Moises Caicedo,Midfielder,30,International,true,false,Midfielders 1,CDM,88
+73,fb_74,Martin Odegaard,Midfielder,30,International,true,false,Midfielders 1,CAM,86
+74,fb_83,Hakan Calhanoglu,Midfielder,30,International,true,false,Midfielders 1,CDM,86
+75,fb_79,Bruno Guimaraes,Midfielder,30,International,true,false,Midfielders 1,CM,86
+76,fb_77,Frenkie De Jong,Midfielder,30,International,true,false,Midfielders 1,CDM,87
+77,fb_87,Fabian Ruiz,Midfielder,15,International,true,false,Midfielders 1,CM,85
+78,fb_86,Scott McTominay,Midfielder,15,International,true,false,Midfielders 1,CDM,85
+79,fb_81,Sandro Tonali,Midfielder,30,International,true,false,Midfielders 1,CDM,86
+80,fb_90,Aurelien Tchouameni,Midfielder,15,International,true,false,Midfielders 1,CDM,84
+81,fb_80,Ryan Gravenberch,Midfielder,30,International,true,false,Midfielders 1,CM,86
+82,fb_91,Martin Zubimendi,Midfielder,15,International,true,false,Midfielders 1,CDM,84
+83,fb_76,Nicolo Barella,Midfielder,30,International,true,false,Midfielders 1,CM,88
+84,fb_88,Yuri Tielemans,Midfielder,15,International,true,false,Midfielders 1,CM,85
+85,fb_71,Dani Olmo,Midfielder,15,International,true,false,Midfielders 1,CAM,84
+86,fb_89,Ngolo Kante,Midfielder,15,International,true,false,Midfielders 1,CDM,85
+87,fb_82,Alexis Mac Allister,Midfielder,30,International,true,false,Midfielders 1,CM,86
+88,fb_73,Morgan Rogers,Midfielder,15,International,true,false,Midfielders 1,CAM,83
+89,fb_69,Kevin De Bruyne,Midfielder,30,International,true,false,Midfielders 1,CAM,87
+90,fb_85,Tijjani Reijnders,Midfielder,15,International,true,false,Midfielders 1,CM,85
+91,fb_84,Enzo Fernandez,Midfielder,15,International,true,false,Midfielders 1,CM,85
+92,fb_78,Joao Neves,Midfielder,30,International,true,false,Midfielders 1,CM,86
+93,fb_106,Alejandro Balde,Defender,15,International,true,false,Defenders 1,DEF,83
+94,fb_97,Denzel Dumfries,Defender,15,International,true,false,Defenders 1,RB,84
+95,fb_114,Ruben Dias,Defender,30,International,true,false,Defenders 1,DEF,86
+96,fb_115,Dayot Upamecano,Defender,30,International,true,false,Defenders 1,DEF,86
+97,fb_101,Marc Cucurella,Defender,15,International,true,false,Defenders 1,DEF,85
+98,fb_94,Trent Alexander Arnold,Defender,30,International,true,false,Defenders 1,RB,86
+99,fb_95,Dani Carvajal,Defender,15,International,true,false,Defenders 1,RB,85
+100,fb_96,Jurrien Timber,Defender,15,International,true,false,Defenders 1,RB,84
+101,fb_100,Jeremie Frimpong,Defender,15,International,true,false,Defenders 1,DEF,83
+102,fb_122,Eder Militao,Defender,15,International,true,false,Defenders 1,DEF,84
+103,fb_119,Antonio Rudiger,Defender,15,International,true,false,Defenders 1,DEF,85
+104,fb_104,Theo Hernandez,Defender,15,International,true,false,Defenders 1,DEF,84
+105,fb_105,Alejandro Grimaldo,Defender,15,International,true,false,Defenders 1,DEF,84
+106,fb_107,David Raum,Defender,15,International,true,false,Defenders 1,DEF,83
+107,fb_112,Marquinhos,Defender,30,International,true,false,Defenders 1,DEF,87
+108,fb_99,Joao Cancelo,Defender,15,International,true,false,Defenders 1,DEF,84
+109,fb_118,Ibrahima Konate,Defender,15,International,true,false,Defenders 1,DEF,85
+110,fb_102,Federico Dimarco,Defender,15,International,true,false,Defenders 1,DEF,85
+111,fb_111,Jonathan Tah,Defender,30,International,true,false,Defenders 1,DEF,87
+112,fb_117,Gleison Bremer,Defender,15,International,true,false,Defenders 1,DEF,85
+113,fb_113,Nico Schlotterbeck,Defender,30,International,true,false,Defenders 1,DEF,86
+114,fb_120,Inigo Martinez,Defender,15,International,true,false,Defenders 1,DEF,85
+115,fb_124,Pau Cubarsi,Defender,15,International,true,false,Defenders 1,DEF,82
+116,fb_121,Gianluca Mancini,Defender,15,International,true,false,Defenders 1,DEF,84
+117,fb_123,Dean Huijsen,Defender,15,International,true,false,Defenders 1,DEF,82
+118,fb_103,Alphonso Davies,Defender,15,International,true,false,Defenders 1,DEF,84
+119,fb_116,Josko Gvardiol,Defender,15,International,true,false,Defenders 1,DEF,85
+120,fb_98,Marcos Llorente,Defender,15,International,true,false,Defenders 1,DEF,84
+121,fb_109,Willian Pacho,Defender,30,International,true,false,Defenders 1,DEF,87
+122,fb_108,Milos Kerkez,Defender,10,International,true,false,Defenders 1,DEF,81
+123,fb_93,Jules Kounde,Defender,30,International,true,false,Defenders 1,RB,86
+124,fb_110,Alessandro Bastoni,Defender,30,International,true,false,Defenders 1,DEF,87
+125,fb_139,Matz Sels,Goalkeeper,10,International,true,false,Goalkeeper 2,GK,81
+126,fb_136,Dean Henderson,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,83
+127,fb_137,Alex Remiro,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,83
+128,fb_135,Guglielmo Vicario,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,83
+129,fb_140,Robert Sanchez,Goalkeeper,10,International,true,false,Goalkeeper 2,GK,80
+130,fb_138,Alex Meret,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,83
+131,fb_130,Mile Svilar,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+132,fb_128,Marco Carnesecchi,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+133,fb_129,Diogo Costa,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+134,fb_125,David De Gea,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,85
+135,fb_133,Wojciech Szczęsny,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+136,fb_134,Lucas Chevalier,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,83
+137,fb_131,Unai Simon,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+138,fb_132,Jordan Pickford,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+139,fb_126,Peter Gulacsi,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,85
+140,fb_127,Giorgi Mamardashvili,Goalkeeper,15,International,true,false,Goalkeeper 2,GK,84
+141,fb_159,Dejan Kulusevski,Forward,15,International,true,false,Attackers 2,RW,83
+142,fb_163,Karim Adeyemi,Forward,15,International,true,false,Attackers 2,RW,82
+143,fb_158,Moussa Diaby,Forward,15,International,true,false,Attackers 2,RW,84
+144,fb_143,Matheus Cunha,Forward,15,International,true,false,Attackers 2,ST,83
+145,fb_164,Pedro Neto,Forward,15,International,true,false,Attackers 2,RW,82
+146,fb_152,Mattia Zaccagni,Forward,15,International,true,false,Attackers 2,LW,84
+147,fb_147,Ademola Lookman,Forward,15,International,true,false,Attackers 2,ST,83
+148,fb_146,Mateo Retegui,Forward,15,International,true,false,Attackers 2,ST,84
+149,fb_150,Omar Marmoush,Forward,15,International,true,false,Attackers 2,LW,84
+150,fb_142,Patrik Schick,Forward,15,International,true,false,Attackers 2,ST,85
+151,fb_153,Kingsley Coman,Forward,15,International,true,false,Attackers 2,LW,83
+152,fb_162,Inaki Williams,Forward,15,International,true,false,Attackers 2,RW,83
+153,fb_145,Romelu Lukaku,Forward,15,International,true,false,Attackers 2,ST,84
+154,fb_149,Alex Baena,Forward,15,International,true,false,Attackers 2,LW,84
+155,fb_141,Karim Benzema,Forward,15,International,true,false,Attackers 2,ST,85
+156,fb_161,Jarrod Bowen,Forward,15,International,true,false,Attackers 2,RW,83
+157,fb_148,Alexander Sorloth,Forward,15,International,true,false,Attackers 2,ST,83
+158,fb_160,Riccardo Orsolini,Forward,15,International,true,false,Attackers 2,RW,83
+159,fb_144,Antoine Griezmann,Forward,15,International,true,false,Attackers 2,ST,85
+160,fb_156,Marcus Rashford,Forward,15,International,true,false,Attackers 2,LW,82
+161,fb_151,Heung Min Son,Forward,15,International,true,false,Attackers 2,LW,85
+162,fb_155,Leandro Trossard,Forward,15,International,true,false,Attackers 2,LW,83
+163,fb_157,Riyad Mahrez,Forward,15,International,true,false,Attackers 2,RW,85
+164,fb_154,Sadio Mane,Forward,15,International,true,false,Attackers 2,LW,83
+165,fb_169,Nico Paz,Midfielder,10,International,true,false,Midfielders 2,CAM,80
+166,fb_186,Joao Palhinha,Midfielder,15,International,true,false,Midfielders 2,CDM,83
+167,fb_187,Aleix Garcia,Midfielder,15,International,true,false,Midfielders 2,CM,83
+168,fb_176,Exequiel Palacios,Midfielder,15,International,true,false,Midfielders 2,CDM,84
+169,fb_174,Pablo Gavi,Midfielder,15,International,true,false,Midfielders 2,CM,83
+170,fb_179,Manuel Locatelli,Midfielder,15,International,true,false,Midfielders 2,CDM,84
+171,fb_175,Edouardo Camavinga,Midfielder,15,International,true,false,Midfielders 2,CM,83
+172,fb_173,Granit Xhaka,Midfielder,15,International,true,false,Midfielders 2,CDM,85
+173,fb_171,Isco Alarcon,Midfielder,15,International,true,false,Midfielders 2,CAM,84
+174,fb_166,Fermin Lopez,Midfielder,10,International,true,false,Midfielders 2,CAM,80
+175,fb_183,Felix Nmecha,Midfielder,15,International,true,false,Midfielders 2,CM,83
+176,fb_168,Xavi Simons,Midfielder,15,International,true,false,Midfielders 2,CAM,83
+177,fb_180,Adrien Rabiot,Midfielder,15,International,true,false,Midfielders 2,CM,84
+178,fb_188,Mikel Merino,Midfielder,15,International,true,false,Midfielders 2,CM,83
+179,fb_184,Morten Hjulmand,Midfielder,15,International,true,false,Midfielders 2,CDM,83
+180,fb_165,Arda Guler,Midfielder,15,International,true,false,Midfielders 2,CAM,83
+181,fb_181,Pablo Barrios,Midfielder,15,International,true,false,Midfielders 2,CM,83
+182,fb_170,James Maddison,Midfielder,15,International,true,false,Midfielders 2,CAM,84
+183,fb_167,Eberechi Eze,Midfielder,15,International,true,false,Midfielders 2,CAM,84
+184,fb_172,Paulo Dybala,Midfielder,15,International,true,false,Midfielders 2,CAM,85
+185,fb_182,Angelo Stiller,Midfielder,15,International,true,false,Midfielders 2,CDM,83
+186,fb_185,Boubacar Kamara,Midfielder,15,International,true,false,Midfielders 2,CDM,83
+187,fb_177,Ruben Neves,Midfielder,15,International,true,false,Midfielders 2,CDM,84
+188,fb_178,Sergej Milinkovic-Savic,Midfielder,15,International,true,false,Midfielders 2,CM,84
+189,fb_205,Ronald Araujo,Defender,15,International,true,false,Defenders 2,CB,83
+190,fb_195,Konrad Laimer,Defender,15,International,true,false,Defenders 2,RB,83
+191,fb_218,Nikola Milenkovic,Defender,15,International,true,false,Defenders 2,CB,82
+192,fb_194,Tino Livramento,Defender,10,International,true,false,Defenders 2,RB,80
+193,fb_206,Eric Garcia,Defender,10,International,true,false,Defenders 2,CB,81
+194,fb_199,Antonee Robinson,Defender,15,International,true,false,Defenders 2,LB,82
+195,fb_215,Stefan De Vrij,Defender,15,International,true,false,Defenders 2,CB,83
+196,fb_197,Andrew Robertson,Defender,10,International,true,false,Defenders 2,LB,81
+197,fb_208,David Hancko,Defender,15,International,true,false,Defenders 2,CB,83
+198,fb_189,Reece James,Defender,15,International,true,false,Defenders 2,RB,83
+199,fb_190,Pedro Porro,Defender,15,International,true,false,Defenders 2,RB,82
+200,fb_210,Micky Van De Ven,Defender,15,International,true,false,Defenders 2,CB,83
+201,fb_211,Amir Rrahmani,Defender,15,International,true,false,Defenders 2,CB,83
+202,fb_217,Alessandro Buongiorno,Defender,15,International,true,false,Defenders 2,CB,82
+203,fb_192,Ben White,Defender,15,International,true,false,Defenders 2,RB,83
+204,fb_202,Carlos Augusto,Defender,10,International,true,false,Defenders 2,LB,81
+205,fb_200,Maximilian Mittelstadt,Defender,15,International,true,false,Defenders 2,LB,82
+206,fb_201,Miguel Gutierrez,Defender,10,International,true,false,Defenders 2,LB,81
+207,fb_212,Marc Guehi,Defender,15,International,true,false,Defenders 2,CB,83
+208,fb_216,Sven Botman,Defender,15,International,true,false,Defenders 2,CB,82
+209,fb_219,Kim Min Jae,Defender,15,International,true,false,Defenders 2,CB,82
+210,fb_204,Rayan Ait-Nouri,Defender,10,International,true,false,Defenders 2,LB,81
+211,fb_196,Oscar Mingueza,Defender,10,International,true,false,Defenders 2,RB,80
+212,fb_193,Daniel Munoz,Defender,15,International,true,false,Defenders 2,RB,82
+213,fb_209,Piero Hincapie,Defender,15,International,true,false,Defenders 2,CB,83
+214,fb_214,Benjamin Pavard,Defender,15,International,true,false,Defenders 2,CB,83
+215,fb_213,Ezri Konsa,Defender,15,International,true,false,Defenders 2,CB,83
+216,fb_191,Giovanni Di Lorenzo,Defender,15,International,true,false,Defenders 2,RB,83
+217,fb_203,Riccardo Calafiori,Defender,10,International,true,false,Defenders 2,LB,81
+218,fb_207,Jose Maria Gimenez,Defender,15,International,true,false,Defenders 2,CB,83
+219,fb_220,Matthijs De Ligt,Defender,15,International,true,false,Defenders 2,CB,82
+220,fb_198,Alvaro Carreras,Defender,10,International,true,false,Defenders 2,LB,79
+221,fb_225,Andriy Lunin,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,81
+222,fb_224,Yassine Bounou,Goalkeeper,15,International,true,false,Goalkeepers 3,GK,82
+223,fb_223,Geronimo Rulli,Goalkeeper,15,International,true,false,Goalkeepers 3,GK,82
+224,fb_221,Oliver Baumann,Goalkeeper,15,International,true,false,Goalkeepers 3,GK,83
+225,fb_230,Lukas Hradecky,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,81
+226,fb_226,David Soria,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,81
+227,fb_236,Matvey Safonov,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,78
+228,fb_235,Senne Lammens,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,78
+229,fb_231,Dorde Petrovic,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,80
+230,fb_227,Alexander Nubel,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,81
+231,fb_228,Rui Silva,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,81
+232,fb_229,Nick Pope,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,81
+233,fb_234,Caoimhin Kelleher,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,79
+234,fb_222,Ivan Provedel,Goalkeeper,15,International,true,false,Goalkeepers 3,GK,82
+235,fb_232,Anatoliy Trubin,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,80
+236,fb_233,Bart Verbruggen,Goalkeeper,10,International,true,false,Goalkeepers 3,GK,79
+237,fb_258,Iliman Ndiaye,Forward,15,International,true,false,Attackers 3,RW,82
+238,fb_241,Lois Openda,Forward,15,International,true,false,Attackers 3,ST,82
+239,fb_265,Antony Dos Santos,Forward,10,International,true,false,Attackers 3,RW,81
+240,fb_238,Vangelis Pavlidis,Forward,15,International,true,false,Attackers 3,ST,83
+241,fb_242,Yoanne Wissa,Forward,15,International,true,false,Attackers 3,ST,82
+242,fb_262,Domenico Berardi,Forward,15,International,true,false,Attackers 3,RW,82
+243,fb_248,Kaoru Mitoma,Forward,15,International,true,false,Attackers 3,LW,82
+244,fb_253,Kenan Yildiz,Forward,15,International,true,false,Attackers 3,LW,82
+245,fb_250,Serge Gnabry,Forward,15,International,true,false,Attackers 3,LW,82
+246,fb_246,Dusan Vlahovic,Forward,15,International,true,false,Attackers 3,ST,82
+247,fb_261,Iago Aspas,Forward,15,International,true,false,Attackers 3,RW,82
+248,fb_256,Yeremy Pino,Forward,10,International,true,false,Attackers 3,LW,80
+249,fb_243,Ollie Watkins,Forward,15,International,true,false,Attackers 3,ST,82
+250,fb_239,Benjamin Sesko,Forward,10,International,true,false,Attackers 3,ST,80
+251,fb_263,Angel Di Maria,Forward,15,International,true,false,Attackers 3,RW,82
+252,fb_264,Savinho Oliveira,Forward,15,International,true,false,Attackers 3,RW,82
+253,fb_254,Joao Felix,Forward,10,International,true,false,Attackers 3,LW,80
+254,fb_249,Anthony Gordon,Forward,15,International,true,false,Attackers 3,LW,82
+255,fb_266,Mohammed Kudus,Forward,10,International,true,false,Attackers 3,RW,81
+256,fb_257,Antonie Semenyo,Forward,10,International,true,false,Attackers 3,RW,81
+257,fb_240,Goncalo Ramos,Forward,10,International,true,false,Attackers 3,ST,80
+258,fb_259,Giuliano Simeone,Forward,15,International,true,false,Attackers 3,RW,82
+259,fb_255,Christos Tzolis,Forward,10,International,true,false,Attackers 3,LW,81
+260,fb_251,Jack Grealish,Forward,15,International,true,false,Attackers 3,LW,82
+261,fb_245,Kai Havertz,Forward,10,International,true,false,Attackers 3,ST,81
+262,fb_244,Jean-Phillippe Mateta,Forward,15,International,true,false,Attackers 3,ST,82
+263,fb_260,Leroy Sane,Forward,15,International,true,false,Attackers 3,RW,82
+264,fb_247,Mikel Oyarzabal,Forward,15,International,true,false,Attackers 3,LW,82
+265,fb_237,Moise Kean,Forward,15,International,true,false,Attackers 3,ST,83
+266,fb_252,David Neres,Forward,15,International,true,false,Attackers 3,LW,82
+267,fb_272,Christopher Nkunku,Midfielder,10,International,true,false,Midfielders 3,CAM,80
+268,fb_281,Ilkay Gundogan,Midfielder,15,International,true,false,Midfielders 3,CM,83
+269,fb_285,Mateo Guendouzi,Midfielder,15,International,true,false,Midfielders 3,CM,82
+270,fb_283,Elliot Anderson,Midfielder,15,International,true,false,Midfielders 3,CDM,83
+271,fb_267,Pedro Goncalves,Midfielder,15,International,true,false,Midfielders 3,CAM,83
+272,fb_277,Andre-Franck Zambo Anguissa,Midfielder,15,International,true,false,Midfielders 3,CM,83
+273,fb_296,Warren Zaire-Emery,Midfielder,10,International,true,false,Midfielders 3,CM,79
+274,fb_284,Orkun Kokcu,Midfielder,15,International,true,false,Midfielders 3,CM,82
+275,fb_286,Leon Goretzka,Midfielder,15,International,true,false,Midfielders 3,CM,82
+276,fb_278,Stanislav Lobotka,Midfielder,15,International,true,false,Midfielders 3,CM,83
+277,fb_275,Oihan Sancet,Midfielder,15,International,true,false,Midfielders 3,CAM,83
+278,fb_270,Francisco Trincao,Midfielder,15,International,true,false,Midfielders 3,CAM,82
+279,fb_294,Marc Casado,Midfielder,10,International,true,false,Midfielders 3,CDM,78
+280,fb_276,Charles De Ketelaere,Midfielder,10,International,true,false,Midfielders 3,CAM,81
+281,fb_271,Morgan Gibbs-White,Midfielder,15,International,true,false,Midfielders 3,CAM,82
+282,fb_279,Rodrigo De Paul,Midfielder,15,International,true,false,Midfielders 3,CM,83
+283,fb_295,Johnny Cardoso,Midfielder,10,International,true,false,Midfielders 3,CDM,81
+284,fb_288,Emre Can,Midfielder,15,International,true,false,Midfielders 3,CDM,82
+285,fb_274,Thiago Almada,Midfielder,10,International,true,false,Midfielders 3,CAM,79
+286,fb_289,Mateo Kovacic,Midfielder,15,International,true,false,Midfielders 3,CM,82
+287,fb_273,Giovani Lo Celso,Midfielder,15,International,true,false,Midfielders 3,CAM,82
+288,fb_290,Khephren Thuram,Midfielder,10,International,true,false,Midfielders 3,CM,81
+289,fb_291,Youssouf Fofana,Midfielder,10,International,true,false,Midfielders 3,CM,81
+290,fb_280,Henrikh Mkhitaryan,Midfielder,15,International,true,false,Midfielders 3,CM,83
+291,fb_292,Aleksander Pavlovic,Midfielder,10,International,true,false,Midfielders 3,CDM,81
+292,fb_282,Ederson Dos Santos,Midfielder,15,International,true,false,Midfielders 3,CM,83
+293,fb_269,Malik Tillman,Midfielder,15,International,true,false,Midfielders 3,CAM,82
+294,fb_287,Lucas Torreira,Midfielder,15,International,true,false,Midfielders 3,CDM,82
+295,fb_293,Andrey Dos Santos,Midfielder,10,International,true,false,Midfielders 3,CM,80
+296,fb_268,Julian Brandt,Midfielder,15,International,true,false,Midfielders 3,CAM,83
+297,fb_326,Matthias Ginter,Defender,15,International,true,false,Defenders 3,CB,82
+298,fb_299,Noussair Mazraoui,Defender,10,International,true,false,Defenders 3,RB,80
+299,fb_319,Aymeric Laporte,Defender,15,International,true,false,Defenders 3,CB,82
+300,fb_324,Davinson Sanchez,Defender,15,International,true,false,Defenders 3,CB,82
+301,fb_329,Kalidou Koulibaly,Defender,15,International,true,false,Defenders 3,CB,82
+302,fb_321,Cristian Romero,Defender,15,International,true,false,Defenders 3,CB,82
+303,fb_327,John Stones,Defender,15,International,true,false,Defenders 3,CB,82
+304,fb_328,Nicolas Otamendi,Defender,15,International,true,false,Defenders 3,CB,82
+305,fb_335,Lucas Balerdi,Defender,10,International,true,false,Defenders 3,CB,81
+306,fb_315,Neco Williams,Defender,10,International,true,false,Defenders 3,LB,79
+307,fb_297,Arnau Martinez,Defender,10,International,true,false,Defenders 3,RB,78
+308,fb_309,Lewis Hall,Defender,10,International,true,false,Defenders 3,LB,80
+309,fb_316,Sergio Gomez,Defender,10,International,true,false,Defenders 3,LB,79
+310,fb_307,Ferland Mendy,Defender,10,International,true,false,Defenders 3,LB,81
+311,fb_332,Maxence Lacroix,Defender,10,International,true,false,Defenders 3,CB,81
+312,fb_336,Lisandro Martinez,Defender,10,International,true,false,Defenders 3,CB,81
+313,fb_331,Edmond Tasoba,Defender,10,International,true,false,Defenders 3,CB,81
+314,fb_308,Gerard Martin,Defender,10,International,true,false,Defenders 3,LB,75
+315,fb_317,Fikayo Tomori,Defender,10,International,true,false,Defenders 3,CB,81
+316,fb_312,Andrea Cambiaso,Defender,10,International,true,false,Defenders 3,LB,80
+317,fb_314,Djed Spence,Defender,10,International,true,false,Defenders 3,LB,79
+318,fb_305,Ferdi Kadioglu,Defender,10,International,true,false,Defenders 3,RB,79
+319,fb_333,Nayef Aguerd,Defender,10,International,true,false,Defenders 3,CB,81
+320,fb_301,Ola Aina,Defender,10,International,true,false,Defenders 3,RB,78
+321,fb_298,Matheus Nunez,Defender,10,International,true,false,Defenders 3,RB,80
+322,fb_313,Ian Maatsen,Defender,10,International,true,false,Defenders 3,LB,79
+323,fb_322,Manuel Akanji,Defender,15,International,true,false,Defenders 3,CB,82
+324,fb_325,Alessio Romagnoli,Defender,15,International,true,false,Defenders 3,CB,82
+325,fb_318,Roger Ibanez,Defender,15,International,true,false,Defenders 3,CB,83
+326,fb_323,Nathan Ake,Defender,15,International,true,false,Defenders 3,CB,82
+327,fb_304,Yan Couto,Defender,10,International,true,false,Defenders 3,RB,78
+328,fb_320,Robin Le Normand,Defender,15,International,true,false,Defenders 3,CB,82
+329,fb_334,Mohamed Simakan,Defender,10,International,true,false,Defenders 3,CB,81
+330,fb_310,Sergi Cardona,Defender,10,International,true,false,Defenders 3,LB,80
+331,fb_306,Rico Lewis,Defender,10,International,true,false,Defenders 3,RB,77
+332,fb_303,Sergino Dest,Defender,10,International,true,false,Defenders 3,RB,80
+333,fb_311,Destiny Udogie,Defender,10,International,true,false,Defenders 3,LB,79
+334,fb_330,Goncalo Inacio,Defender,10,International,true,false,Defenders 3,CB,81
+335,fb_302,Malo Gusto,Defender,10,International,true,false,Defenders 3,RB,79
+336,fb_300,Rasmus Kristensen,Defender,10,International,true,false,Defenders 3,RB,80
+337,fb_342,Marc Bernal,Midfielder,5,International,true,false,Young Stars,CDM,74
+338,fb_350,Rio Ngumoha,Forward,5,International,true,false,Young Stars,LW,68
+339,fb_349,Givario Read,Defender,10,International,true,false,Young Stars,RB,75
+340,fb_339,Samu Omorodion,Forward,10,International,true,false,Young Stars,ST,79
+341,fb_352,Jorthy Mokio,Midfielder,5,International,true,false,Young Stars,CDM,69
+342,fb_337,Endrick De Sousa,Forward,10,International,true,false,Young Stars,ST,77
+343,fb_344,Ousmane Diomande,Defender,10,International,true,false,Young Stars,CB,80
+344,fb_340,Antonio Nusa,Forward,10,International,true,false,Young Stars,LW,78
+345,fb_357,Yan Diomande,Forward,5,International,true,false,Young Stars,RW,73
+346,fb_346,Gerogiy Sudakov,Midfielder,10,International,true,false,Young Stars,CAM,80
+347,fb_341,Alberto Moleiro,Forward,10,International,true,false,Young Stars,LW,80
+348,fb_359,Romeo Lavia,Midfielder,10,International,true,false,Young Stars,CDM,78
+349,fb_348,Jorrel Hato,Defender,10,International,true,false,Young Stars,LB,78
+350,fb_351,Cardoso Varela,Forward,5,International,true,false,Young Stars,LW,68
+351,fb_343,Franco Mastantuono,Forward,10,International,true,false,Young Stars,RW,80
+352,fb_345,Castello Lukeba,Defender,10,International,true,false,Young Stars,CB,80
+353,fb_354,Lucas Berdvall,Midfielder,10,International,true,false,Young Stars,CM,78
+354,fb_360,Victor Froholdt,Midfielder,10,International,true,false,Young Stars,CM,78
+355,fb_361,Kees Smit,Midfielder,5,International,true,false,Young Stars,CAM,74
+356,fb_338,Rodrigo Mora,Midfielder,10,International,true,false,Young Stars,CAM,77
+357,fb_355,Gillaume Restes,Goalkeeper,10,International,true,false,Young Stars,GK,78
+358,fb_347,Geovany Quenda,Forward,10,International,true,false,Young Stars,RW,76
+359,fb_353,Miles Lewis-Skelly,Defender,10,International,true,false,Young Stars,LB,78
+360,fb_356,Lennart Karl,Midfielder,5,International,true,false,Young Stars,CAM,68
+361,fb_358,Senny Mayulu,Midfielder,10,International,true,false,Young Stars,CM,76

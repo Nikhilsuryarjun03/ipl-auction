@@ -3,7 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROLE = { 'Batsman': 'BAT', 'Wicket-Keeper': 'WK', 'All-Rounder': 'AR', 'Bowler': 'BOWL' };
+const ROLE = {
+  'Batsman': 'BAT', 'Wicket-Keeper': 'WK', 'All-Rounder': 'AR', 'Bowler': 'BOWL',
+  'Goalkeeper': 'GK', 'Defender': 'DEF', 'Midfielder': 'MID', 'Forward': 'FWD'
+};
 const COUNTRY = {
   India: 'IND', Australia: 'AUS', England: 'ENG', 'South Africa': 'SA', 'New Zealand': 'NZ', 'West Indies': 'WI',
   'Sri Lanka': 'SL', Afghanistan: 'AFG', Bangladesh: 'BAN', Pakistan: 'PAK', Netherlands: 'NED', Ireland: 'IRE', Zimbabwe: 'ZIM'
@@ -47,11 +50,12 @@ function toPlayer(r, id) {
   return {
     id, key: r.id, name: r.name, role: ROLE[r.role] || 'AR',
     country: COUNTRY[r.country] || r.country, overseas: r.isOverseas === 'true', capped: r.isCapped === 'true',
-    base: Number(r.basePrice), set: setLabel(r.set), prevTeam: r.previousTeam || '', stats: statsOf(r)
+    base: Number(r.basePrice), set: setLabel(r.set), prevTeam: r.previousTeam || '', stats: statsOf(r),
+    ...(r.position ? { position: r.position, rating: num(r.rating) } : {})
   };
 }
 
-// Ids: mega list 1–999, extra mock players 1000+, legends 2001+, legends upgraded 3001+.
+// Ids: mega list 1–999, extra mock players 1000+, legends 2001+, legends upgraded 3001+, football 5001+.
 const MEGA = readCsv('playauction_mega_auction.csv').map((r, i) => toPlayer(r, i + 1));
 const byKey = new Map(MEGA.map(p => [p.key, p]));
 const EXTRA = []; // players that appear in the mock files but not in the mega list
@@ -69,4 +73,7 @@ readCsv('playauction_ipl2026_mock_retentions.csv').forEach(r => {
 const LEGENDS = readCsv('playauction_ipl_legends_auction.csv').map((r, i) => toPlayer(r, 2001 + i));
 const UPGRADED = readCsv('playauction_legends_upgraded.csv').map((r, i) => toPlayer(r, 3001 + i));
 
-module.exports = { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED };
+// Football: prices are in €M; country is "International" in the list, so it isn't shown.
+const FOOTBALL = readCsv('playauction_football_auction.csv').map((r, i) => ({ ...toPlayer(r, 5001 + i), country: '' }));
+
+module.exports = { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED, FOOTBALL };

@@ -243,6 +243,22 @@ input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px 
 input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; }
 .error { color: #FF8A94; font-size: 13px; min-height: 1.2em; margin-top: 8px; }
 
+/* sport picker (home) */
+.sport-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sport-pick button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--border-2); background: var(--bg); color: var(--dim); font-weight: 700; font-size: 15px; transition: border-color .15s, background .15s;
+}
+.sport-pick button:hover { color: var(--text); }
+.sport-pick button.on { border-color: var(--accent); background: rgba(245,184,65,.1); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.sport-pick span { font-size: 18px; }
+.brand-mark.ball { /* football: white ball with dark patches */
+  background: radial-gradient(circle at 50% 50%, #1b1b1b 0 18%, transparent 19%), radial-gradient(circle at 18% 30%, #1b1b1b 0 10%, transparent 11%),
+    radial-gradient(circle at 82% 30%, #1b1b1b 0 10%, transparent 11%), radial-gradient(circle at 30% 85%, #1b1b1b 0 10%, transparent 11%),
+    radial-gradient(circle at 70% 85%, #1b1b1b 0 10%, transparent 11%), #f4f4f4;
+}
+.brand-mark.ball::after { display: none; }
+
 /* ---------- lobby ---------- */
 .lobby { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
@@ -252,6 +268,12 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
   border-left: 3px solid var(--c); transition: background .15s, border-color .15s;
 }
 .team-card:hover:not(:disabled) { background: var(--surface-2); }
+.league + .league { margin-top: 6px; }
+.league-name { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin: 4px 0 8px; }
+.team-grid.compact { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.team-grid.compact .team-card { padding: 10px; gap: 10px; }
+.team-grid.compact .badge.md { --s: 32px; }
+.team-grid.compact .tc-text strong { font-size: 13px; }
 .team-card.mine { border-color: var(--accent); border-left-color: var(--c); background: rgba(245,184,65,.06); }
 .team-card:disabled { cursor: default; opacity: .55; }
 .tc-text { display: grid; min-width: 0; }
@@ -351,6 +373,9 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
   border: 1px solid var(--border-2); background: var(--surface-2); font-weight: 700; font-size: 13px;
 }
 .join-team:hover { border-color: var(--accent); }
+.join-teams { max-height: 220px; overflow: auto; }
+.rating { color: var(--accent); font-weight: 700; }
+.rating-tag { background: rgba(245,184,65,.15); color: var(--accent); }
 
 .purses { list-style: none; margin: 0; padding: 0 8px 8px; }
 .purses li { display: flex; gap: 10px; align-items: center; padding: 10px 8px; border-radius: 10px; transition: background .2s; }
@@ -542,7 +567,10 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
   .lot-card { grid-template-columns: 104px 1fr; gap: 14px; padding: 14px; }
   .lot-photo { width: 104px; height: 128px; }
   .avatar.photo { font-size: 30px; }
-  .lot-stats { grid-template-columns: 1fr 1fr; }
+  .lot-stats { grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); }
+  .lot-stats > div { padding: 8px 9px; }
+  .brand-tag { display: none; }
+  .tb-right { gap: 6px; }
   .clock { width: 70px; height: 70px; }
   .clock span { font-size: 22px; }
   .host-timer { margin-left: 0; }
