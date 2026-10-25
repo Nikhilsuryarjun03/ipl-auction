@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const rooms = new Map();
 
 // ---------- helpers ----------
-const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : `₹${l} L`);
+const fmt = l => (l >= 100 ? `₹${+(l / 100).toFixed(2)} cr` : l ? `₹${l} L` : '₹0');
 const increment = l => (l < 100 ? 5 : l < 200 ? 10 : l < 500 ? 20 : 25);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const clean = (s, n = 20) => String(s || '').replace(/[<>]/g, '').trim().slice(0, n);
@@ -303,6 +303,28 @@ io.on('connection', socket => {
     if (r.status === 'live' && r.timeLeft > s) r.timeLeft = s;
     addLog(r, `Bid timer set to ${s} seconds`, 'host');
     broadcast(r);
+  });
+
+  // Host edits purses: { purses: { CSK: 12000, ... } } in lakhs. Works in the lobby and mid-auction;
+  // the starting purse moves by the same amount so "spent" stays correct.
+  socket.on('setPurses', ({ purses } = {}, cb) => {
+    const r = room(); if (!r || !isHost() || r.phase === 'finished') return cb?.({ ok: false, error: 'Only the host can edit purses.' });
+    const changes = [];
+    for (const t of TEAMS) {
+      const v = Number(purses?.[t.id]);
+      if (purses?.[t.id] == null || !Number.isFinite(v)) continue;
+      const amount = Math.round(v / 5) * 5; // bids move in steps of ₹5 L
+      if (amount < 0 || amount > 100000) return cb?.({ ok: false, error: 'Purses must be between ₹0 and ₹1000 cr.' });
+      if (amount === r.purse[t.id]) continue;
+      r.startPurse[t.id] += amount - r.purse[t.id];
+      r.purse[t.id] = amount;
+      changes.push([t.id, amount]);
+    }
+    if (!changes.length) return cb?.({ ok: true });
+    const same = changes.length === TEAMS.length && changes.every(([, a]) => a === changes[0][1]);
+    addLog(r, same ? `Host set every team's purse to ${fmt(changes[0][1])}` : `Host changed purses: ${changes.map(([id, a]) => `${id} ${fmt(a)}`).join(', ')}`, 'host');
+    broadcast(r);
+    cb?.({ ok: true });
   });
 
   socket.on('pause', () => {

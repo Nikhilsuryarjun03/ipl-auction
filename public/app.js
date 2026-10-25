@@ -411,7 +411,7 @@ function lobbyView() {
           <dl class="rules">
             <div><dt>Mode</dt><dd>${esc(meta.modes[state.mode].name)}</dd></div>
             <div><dt>Players in pool</dt><dd>${meta.modes[state.mode].size}</dd></div>
-            <div><dt>Purse</dt><dd>${r.purse ? fmt(r.purse) : 'From 2026 retentions'}</dd></div>
+            <div><dt>Purse</dt><dd class="purse-dd">${purseSummary()}${isHost() ? '<button class="link accent" data-act="purses">Edit</button>' : ''}</dd></div>
             <div><dt>Squad size</dt><dd>Up to ${r.maxSquad}</dd></div>
             <div><dt>Overseas</dt><dd>Up to ${r.maxOverseas}</dd></div>
             <div class="stack"><dt>Bid timer</dt><dd>${timerControl(false)}</dd></div>
@@ -479,7 +479,7 @@ function joinStrip() {
   const free = state.teams.filter(t => !t.owner);
   return `<div class="join-strip">
     <div><strong>You don’t have a team yet</strong>
-    <p class="muted small">${free.length ? `Pick a free franchise to start bidding${state.rules.purse ? ` with the full ${fmt(state.rules.purse)} purse` : ' with its retained squad and purse'}.` : 'All 10 franchises are taken, so you’re watching this one.'}</p></div>
+    <p class="muted small">${free.length ? 'Pick a free franchise to start bidding with its purse.' : 'All 10 franchises are taken, so you’re watching this one.'}</p></div>
     ${free.length ? `<div class="join-teams">${free.map(t => `<button class="join-team" data-act="pick" data-team="${t.id}" title="${esc(t.name)}">${badge(t, 'sm')}<span>${esc(t.id)}</span></button>`).join('')}</div>` : ''}
   </div>`;
 }
@@ -591,6 +591,69 @@ function lotStats(p) {
   return items.slice(0, 3).map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
 }
 
+// "₹120 cr" when every team has the same purse, otherwise a note that it varies.
+function purseSummary() {
+  const purses = state.teams.map(t => t.purse);
+  return purses.every(p => p === purses[0]) ? fmt(purses[0]) : 'Varies by team';
+}
+
+// ---------- purse editor (host) ----------
+// Lives outside #app so state updates don't wipe what the host is typing.
+function openPurseEditor() {
+  const modal = document.getElementById('modal');
+  const cr = l => +(l / 100).toFixed(2);
+  modal.innerHTML = `<div class="sheet-backdrop" id="purseSheet">
+    <section class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="purseTitle">
+      <button class="icon-btn sm sheet-close" data-close type="button" aria-label="Close">✕</button>
+      <h2 id="purseTitle">Edit purses</h2>
+      <p class="muted small">Amounts in crore. ${state.phase === 'auction' ? 'Changes apply straight away and are shown in the activity feed. Money already spent stays spent.' : 'Applies to this auction only.'}</p>
+      <div class="purse-all">
+        <label for="pAll">Set every team to</label>
+        <div class="purse-all-row">
+          <input id="pAll" type="number" min="0" max="1000" step="0.05" inputmode="decimal" placeholder="e.g. 120" />
+          <button class="btn sm" type="button" id="pAllBtn">Fill all</button>
+        </div>
+        <div class="purse-chips">${[80, 100, 120, 150].map(v => `<button class="chip" type="button" data-v="${v}">₹${v} cr</button>`).join('')}</div>
+      </div>
+      <div class="purse-list">
+        ${state.teams.map(t => `<label class="purse-row">
+          ${badge(t, 'sm')}
+          <span class="pr-name"><b>${esc(t.name)}</b><span class="muted small">${t.owner ? esc(t.owner) : 'No owner'}${t.squad.length ? ` · ${t.squad.length} players` : ''}</span></span>
+          <span class="pr-input"><span class="muted">₹</span><input type="number" min="0" max="1000" step="0.05" inputmode="decimal" data-team="${t.id}" value="${cr(t.purse)}" aria-label="${esc(t.name)} purse in crore" /><span class="muted">cr</span></span>
+        </label>`).join('')}
+      </div>
+      <div class="error" id="pErr"></div>
+      <div class="xi-actions"><button class="btn primary" type="button" id="pSave">Save purses</button><button class="btn" type="button" data-close>Cancel</button></div>
+    </section>
+  </div>`;
+  const sheet = document.getElementById('purseSheet');
+  const inputs = [...sheet.querySelectorAll('input[data-team]')];
+  const fillAll = v => { if (v === '' || isNaN(v)) return; inputs.forEach(i => (i.value = v)); pAll.value = v; };
+  const close = () => { document.removeEventListener('keydown', onKey); sheet.classList.add('closing'); setTimeout(() => (modal.innerHTML = ''), 200); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  sheet.addEventListener('click', e => {
+    if (e.target === sheet || e.target.closest('[data-close]')) return close();
+    const chip = e.target.closest('[data-v]'); if (chip) fillAll(chip.dataset.v);
+  });
+  pAllBtn.onclick = () => fillAll(pAll.value);
+  pAll.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); fillAll(pAll.value); } };
+  pSave.onclick = () => {
+    const purses = {};
+    for (const i of inputs) {
+      if (i.value === '') continue;
+      const v = Number(i.value);
+      if (!(v >= 0 && v <= 1000)) return (pErr.textContent = 'Each purse must be between ₹0 and ₹1000 cr.');
+      purses[i.dataset.team] = Math.round(v * 100);
+    }
+    socket.emit('setPurses', { purses }, res => {
+      if (!res?.ok) return (pErr.textContent = res?.error || 'Could not save purses.');
+      close(); toast('Purses updated.');
+    });
+  };
+  setTimeout(() => pAll.focus(), 200);
+}
+
 // ---------- teams panel (tap a team to see its squad by role) ----------
 function squadGroups(t) {
   if (!t.squad.length) return '<p class="sg-empty">No players bought yet.</p>';
@@ -608,7 +671,7 @@ function teamsCard() {
   const r = state.rules;
   return `<section class="card">
     <div class="card-head"><h2>Teams</h2>
-      <div class="head-links"><button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">Playing XIs</button></div>
+      <div class="head-links">${isHost() ? '<button class="link accent" data-act="purses">Edit purses</button>' : ''}<button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">Playing XIs</button></div>
     </div>
     <ul class="purses">
       ${state.teams.filter(t => t.owner).map(t => {
@@ -927,6 +990,7 @@ app.addEventListener('click', e => {
   else if (act === 'leave') { socket.emit('leave'); save(null); state = null; view = 'board'; draft = null; history.replaceState(null, '', '/'); render(true); }
   else if (['squads', 'board', 'xi', 'xi-edit', 'summary'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
   else if (act === 'mode') socket.emit('setMode', { mode: el.dataset.mode });
+  else if (act === 'purses') openPurseEditor();
   else if (act === 'btab') { boardTab = el.dataset.b; render(true); }
   else if (act === 'upall') { showAllUpcoming = true; render(true); }
   else if (act === 'feed') { feedFilter = el.dataset.f; render(true); }
