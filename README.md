@@ -23,6 +23,7 @@ Open it in two browser windows (or on two phones on the same Wi-Fi via your comp
 - `public/` — the browser client (plain HTML/CSS/JS, no build step).
 
 The host picks Cricket or Football when creating a room, then an auction mode in the lobby:
+
 | Mode | Pool | Purse | Squad |
 |---|---|---|---|
 | Mega Auction | 523 players (`playauction_mega_auction.csv`) | ₹120 cr | up to 25 |
@@ -31,7 +32,7 @@ The host picks Cricket or Football when creating a room, then an auction mode in
 | IPL 2026 Mock Auction | 350-player pool; teams start with their real 2026 retentions | each team's real purse left | up to 25 (retained players count) |
 | Football Auction | 361 European players with position and rating (`playauction_football_auction.csv`); 50 clubs | €1000M | up to 25 |
 
-Features: room codes and invite links, four auction modes, IPL-style sets (Marquee first), team claiming,
+Features: cricket and football, room codes and invite links, five auction modes, IPL-style sets (Marquee first), team claiming,
 host controls (pause, close lot, end, bid timer), an unsold-players second round, an auction board
 (upcoming, sold, unsold, leaderboard), team squads by role, an activity feed with chat, Playing XI with
 Impact Player, countdown sounds, reconnect after a refresh and spacebar to bid.
