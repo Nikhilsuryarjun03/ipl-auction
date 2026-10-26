@@ -175,6 +175,8 @@ function playSounds(prev, s) {
   const sameLot = s.lot && prev.lot && s.lot.id === prev.lot.id;
   if (sameLot && s.bid != null && s.bid !== prev.bid) sfx.bid();
   if (s.result && !prev.result) s.result.sold ? sfx.sold() : sfx.unsold();
+  const myTurn = x => x?.status === 'rtm' && rtmDecider(x) === me()?.teamId;
+  if (myTurn(s) && (!myTurn(prev) || s.rtm.step !== prev.rtm?.step)) sfx.beep();
 }
 
 // ---------- socket ----------
@@ -201,7 +203,7 @@ socket.on('tick', t => {
   if (!state) return;
   const prev = state.timeLeft;
   state.timeLeft = t;
-  if (state.status === 'live' && !state.paused && t > 0 && t < prev) {
+  if ((state.status === 'live' || state.status === 'rtm') && !state.paused && t > 0 && t < prev) {
     if (t <= 3) sfx.beep();
     else if (t <= 5) sfx.tick();
   }
@@ -437,6 +439,7 @@ function lobbyView() {
             <div><dt>Purse</dt><dd class="purse-dd">${purseSummary()}${isHost() ? '<button class="link accent" data-act="purses">Edit</button>' : ''}</dd></div>
             <div><dt>Squad size</dt><dd>Up to ${r.maxSquad}</dd></div>
             ${hasOverseas() ? `<div><dt>Overseas</dt><dd>Up to ${r.maxOverseas}</dd></div>` : ''}
+            ${meta.modes[state.mode].rtm ? `<div class="stack"><dt>Right to Match <span class="muted small">cards per team</span></dt><dd>${rtmControl()}</dd></div>` : ''}
             <div class="stack"><dt>Bid timer</dt><dd>${timerControl(false)}</dd></div>
           </dl>
           ${isHost()
@@ -487,7 +490,7 @@ function modePicker() {
 }
 
 // ---------- activity feed + chat ----------
-const FEED_ICON = { bid: '↑', sold: '✓', unsold: '✕', join: '+', team: '★', host: '•', info: '•' };
+const FEED_ICON = { bid: '↑', sold: '✓', unsold: '✕', join: '+', team: '★', host: '•', info: '•', rtm: '⇄' };
 function feedItem(l) {
   const t = l.teamId && team(l.teamId);
   const time = new Date(l.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -527,10 +530,73 @@ function joinStrip() {
   </div>`;
 }
 
+// ---------- Right to Match ----------
+// The team whose decision it is right now.
+const rtmDecider = s => (s.rtm.step === 'raise' ? s.rtm.winner : s.rtm.team);
+
+// The team that could use RTM on this player: its previous team, owned by someone, with cards left.
+function rtmHolder(p) {
+  if (!state.rules.rtmCards || !p.prevTeam) return null;
+  const t = team(p.prevTeam);
+  return t && t.owner && t.rtmLeft > 0 ? t : null;
+}
+
+function rtmControl() {
+  const r = state.rules;
+  if (!isHost()) return `<span class="value">${r.rtmCards ? `${r.rtmCards} per team` : 'Off'}</span>`;
+  return `<div class="seg" role="group" aria-label="Right to Match cards">
+    ${r.rtmOptions.map(n => `<button class="${n === r.rtmCards ? 'on' : ''}" data-act="rtmcards" data-n="${n}" aria-pressed="${n === r.rtmCards}">${n || 'Off'}</button>`).join('')}
+  </div>`;
+}
+
+// Bid steps, matching the server: used for the final-raise buttons.
+const stepFrom = l => (isFootball() ? (l < 20 ? 1 : l < 50 ? 2 : l < 100 ? 5 : 10) : (l < 100 ? 5 : l < 200 ? 10 : l < 500 ? 20 : 25));
+function raiseOptions(price, purse) {
+  const out = [];
+  let v = price;
+  for (const n of [1, 2, 3, 5, 10]) {
+    while (out.length < n) { v += stepFrom(v); out.push(v); }
+  }
+  return [1, 3, 5, 10].map(n => out[n - 1]).filter(a => a <= purse);
+}
+
+function rtmPanel() {
+  const r = state.rtm, prev = team(r.team), win = team(r.winner), mine = me()?.teamId;
+  const lot = state.lot.name;
+  let title, body, actions = '';
+  if (r.step === 'offer') {
+    title = `${prev.name} can use Right to Match`;
+    body = `${esc(lot)} played for ${esc(r.team)} last season. ${esc(r.winner)} won the bidding at <b>${fmt(r.price)}</b>.`;
+    if (mine === r.team) actions = `<button class="btn primary" data-act="rtm" data-a="use">Use RTM at ${fmt(r.price)}</button>
+      <button class="btn" data-act="rtm" data-a="decline">Decline</button>`;
+  } else if (r.step === 'raise') {
+    title = `${win.name} gets one final raise`;
+    body = `${esc(r.team)} used RTM at <b>${fmt(r.price)}</b>. ${esc(r.winner)} can raise once, or let ${esc(r.team)} have ${esc(lot)}.`;
+    if (mine === r.winner) {
+      const opts = raiseOptions(r.price, win.purse);
+      actions = `${opts.map(a => `<button class="btn primary" data-act="rtm" data-a="raise" data-amt="${a}">Raise to ${fmt(a)}</button>`).join('')}
+        <button class="btn" data-act="rtm" data-a="noraise">No raise</button>`;
+    }
+  } else {
+    title = `${prev.name} can match ${fmt(r.price)}`;
+    body = `${esc(r.winner)} raised to <b>${fmt(r.price)}</b>. ${esc(r.team)} can match and take ${esc(lot)}, or let it go.`;
+    if (mine === r.team) actions = `<button class="btn primary" data-act="rtm" data-a="match">Match ${fmt(r.price)}</button>
+      <button class="btn" data-act="rtm" data-a="decline">Decline</button>`;
+  }
+  const waiting = team(rtmDecider(state));
+  return `<div class="rtm-panel" style="${teamVars(prev)}">
+    <div class="rtm-head">${badge(prev, 'sm')}<span class="rtm-label">Right to Match</span><span class="muted small">${esc(r.team)} has ${prev.rtmLeft} card${prev.rtmLeft === 1 ? '' : 's'} left</span></div>
+    <strong class="rtm-title">${esc(title)}</strong>
+    <p class="muted small">${body}</p>
+    ${actions ? `<div class="rtm-actions">${actions}</div>` : `<p class="hint">Waiting for ${esc(waiting.name)}…</p>`}
+  </div>`;
+}
+
 function bidState() {
   const m = me(), t = m?.teamId && team(m.teamId);
   if (!t) return { ok: false, hint: `Pick a free ${TEAM_WORD()} to start bidding.` };
   if (state.paused) return { ok: false, hint: 'The host has paused the auction.' };
+  if (state.status === 'rtm') return { ok: false, hint: 'Right to Match in progress.' };
   if (state.status !== 'live') return { ok: false, hint: 'Next player coming up…' };
   if (state.leader === t.id) return { ok: false, hint: 'You hold the highest bid.' };
   if (t.purse < state.nextBid) return { ok: false, hint: 'Not enough left in your purse.' };
@@ -567,6 +633,7 @@ function auctionView() {
               ${lot.country ? `<span class="tag ${lot.overseas ? 'os' : ''}">${esc(lot.country)}${lot.overseas ? ' · Overseas' : ''}</span>` : ''}
               ${lot.capped === false ? '<span class="tag">Uncapped</span>' : ''}
               ${lot.prevTeam ? `<span class="tag">Last IPL team: ${esc(lot.prevTeam)}</span>` : ''}
+              ${rtmHolder(lot) ? `<span class="tag rtm-chip" title="${esc(rtmHolder(lot).id)} can use Right to Match on this player">RTM: ${esc(rtmHolder(lot).id)}</span>` : ''}
             </div>
             <dl class="lot-stats">
               <div><dt>Base price</dt><dd>${fmt(lot.base)}</dd></div>
@@ -578,7 +645,7 @@ function auctionView() {
         <article class="card bid-card" id="bidCard">
           ${state.paused ? '<div class="banner paused">Auction paused by the host</div>' : ''}
           ${r ? (r.sold
-            ? `<div class="banner sold" style="${teamVars(soldTo)}">${badge(soldTo, 'sm')}<span><b>Sold</b> to ${esc(soldTo.name)}</span><b class="banner-amt">${fmt(r.price)}</b></div>`
+            ? `<div class="banner sold" style="${teamVars(soldTo)}">${badge(soldTo, 'sm')}<span><b>Sold</b> to ${esc(soldTo.name)}${r.rtm ? ' <span class="rtm-tag">using RTM</span>' : ''}</span><b class="banner-amt">${fmt(r.price)}</b></div>`
             : '<div class="banner unsold"><b>Unsold</b><span>No bids. The player goes to the unsold list.</span></div>') : ''}
           <div class="bid-main">
             <div class="bid-info">
@@ -588,14 +655,14 @@ function auctionView() {
             </div>
             <div class="clock" id="clock" role="timer" aria-label="Seconds left"><span id="clockNum"></span><small>sec</small></div>
           </div>
-          ${me()?.teamId ? `
+          ${state.status === 'rtm' ? rtmPanel() : me()?.teamId ? `
             <button class="bid-btn" data-act="bid" ${b.ok ? '' : 'disabled'}>Bid ${fmt(state.nextBid)}</button>
             <p class="bid-hint">${esc(b.hint)}</p>`
           : joinStrip()}
           ${isHost() ? `<div class="host-bar">
             <span class="host-label">Host</span>
             <button class="btn sm" data-act="pause">${state.paused ? 'Resume' : 'Pause'}</button>
-            <button class="btn sm" data-act="skip" ${state.status === 'live' ? '' : 'disabled'}>Close lot</button>
+            <button class="btn sm" data-act="skip" ${state.status === 'live' || state.status === 'rtm' ? '' : 'disabled'}>${state.status === 'rtm' ? 'Skip RTM' : 'Close lot'}</button>
             <button class="btn sm danger" data-act="end">End auction</button>
             <span class="host-timer"><span class="muted small">Timer</span>${timerControl(true)}</span>
           </div>` : ''}
@@ -713,7 +780,7 @@ function squadGroups(t) {
     const ps = t.squad.filter(p => p.role === role).sort((a, b) => b.price - a.price);
     return `<div class="sg">
       <div class="sg-head"><span>${label}</span><span>${ps.length}</span></div>
-      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}${p.retained ? '<span class="os-mark rt" title="Retained">R</span>' : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
+      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}${p.retained ? '<span class="os-mark rt" title="Retained">R</span>' : ''}${p.rtm ? '<span class="os-mark rtm" title="Bought using Right to Match">RTM</span>' : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
         : '<div class="sg-row none">None yet</div>'}
     </div>`;
   }).join('');
@@ -732,7 +799,7 @@ function teamsCard() {
           <button class="p-row" data-act="tteam" data-team="${t.id}" aria-expanded="${open}">
             ${badge(t, 'sm')}
             <div class="p-info">
-              <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span></span><span class="money">${fmt(t.purse)}</span></div>
+              <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span>${state.rules.rtmCards ? `<span class="rtm-count" title="Right to Match cards left">RTM ${t.rtmLeft}</span>` : ''}</span><span class="money">${fmt(t.purse)}</span></div>
               <div class="meter"><span style="width:${(t.purse / (t.startPurse || 1)) * 100}%"></span></div>
               <div class="p-sub">${t.squad.length}/${r.maxSquad} players${hasOverseas() ? ` · ${t.squad.filter(p => p.overseas).length}/${r.maxOverseas} overseas` : ''}</div>
             </div>
@@ -771,7 +838,7 @@ function boardBody() {
     if (!state.sold.length) return '<p class="empty">Nobody has been sold yet.</p>';
     return `<ul class="mp-list">${state.sold.slice().reverse().map(s => {
       const p = P(s.id), t = team(s.teamId);
-      return p ? miniPlayer(p, `<span class="sold-to">${badge(t, 'xs')}${esc(t.id)}</span><b class="price">${fmt(s.price)}</b>`) : '';
+      return p ? miniPlayer(p, `<span class="sold-to">${badge(t, 'xs')}${esc(t.id)}${s.rtm ? '<span class="os-mark rtm">RTM</span>' : ''}</span><b class="price">${fmt(s.price)}</b>`) : '';
     }).join('')}</ul>`;
   }
   if (boardTab === 'unsold') {
@@ -819,12 +886,13 @@ function auctionBoard() {
 
 function updateClock() {
   const c = document.getElementById('clock'); if (!c || !state) return;
-  const t = Math.max(0, state.timeLeft), live = state.status === 'live' && !state.paused;
-  c.style.setProperty('--p', (t / state.rules.bidSeconds) * 100);
+  const rtm = state.status === 'rtm';
+  const t = Math.max(0, state.timeLeft), live = (state.status === 'live' || rtm) && !state.paused;
+  c.style.setProperty('--p', (t / (rtm ? state.rules.rtmSeconds : state.rules.bidSeconds)) * 100);
   c.classList.toggle('urgent', live && t <= 3);
   c.classList.toggle('warn', live && t > 3 && t <= 5);
   document.getElementById('bidCard')?.classList.toggle('urgent', live && t <= 3);
-  document.getElementById('clockNum').textContent = state.status === 'live' ? t : '–';
+  document.getElementById('clockNum').textContent = live || state.paused && (state.status === 'live' || rtm) ? t : '–';
 }
 
 function subNav() {
@@ -1055,6 +1123,8 @@ app.addEventListener('click', e => {
   else if (act === 'leave') { socket.emit('leave'); save(null); state = null; view = 'board'; draft = null; history.replaceState(null, '', '/'); render(true); }
   else if (['squads', 'board', 'xi', 'xi-edit', 'summary'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
   else if (act === 'mode') socket.emit('setMode', { mode: el.dataset.mode });
+  else if (act === 'rtm') socket.emit('rtm', { action: el.dataset.a, amount: el.dataset.amt ? Number(el.dataset.amt) : undefined });
+  else if (act === 'rtmcards') socket.emit('setRtm', { cards: Number(el.dataset.n) });
   else if (act === 'purses') openPurseEditor();
   else if (act === 'btab') { boardTab = el.dataset.b; render(true); }
   else if (act === 'upall') { showAllUpcoming = true; render(true); }

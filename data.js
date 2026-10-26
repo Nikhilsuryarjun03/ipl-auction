@@ -6,6 +6,8 @@ const RULES = {
   maxMembers: 10,    // people allowed in one room
   bidSeconds: 10,    // default countdown; it resets to this on every bid
   timerOptions: [5, 8, 10, 15, 20, 30], // countdowns the host can choose
+  rtmOptions: [0, 1, 2, 3, 4, 5, 6], // Right to Match cards per team the host can choose
+  rtmSeconds: 15,    // time for each Right to Match decision
   breakSeconds: 3,   // pause between lots
   xiSize: 11,        // Playing XI
   xiMaxOverseas: 4   // overseas allowed in the XI, counting the Impact Player
@@ -84,6 +86,7 @@ const MODES = {
   mega: {
     sport: 'cricket',
     name: 'Mega Auction',
+    rtm: 6, // Right to Match cards per team by default; uses each player's previous team from the list
     desc: 'The full IPL mega auction list, set by set. Build a 25-player squad.',
     purse: 12000, maxSquad: 25, maxOverseas: 8,
     pool: () => fromCatalog(MEGA)
@@ -105,6 +108,7 @@ const MODES = {
   mock: {
     sport: 'cricket',
     name: 'IPL 2026 Mock Auction',
+    rtm: 0, // real mini auctions have no RTM, but the host can turn it on
     desc: 'Real 2026 retentions. Each team keeps its retained players and bids with the purse it has left.',
     purse: null, maxSquad: 25, maxOverseas: 8, retentions: RETENTIONS,
     pool: () => fromCatalog(MOCK_POOL)

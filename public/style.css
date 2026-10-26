@@ -377,6 +377,25 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
 .rating { color: var(--accent); font-weight: 700; }
 .rating-tag { background: rgba(245,184,65,.15); color: var(--accent); }
 
+/* Right to Match */
+.rtm-panel {
+  margin-top: 16px; padding: 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--c) 12%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--c) 45%, var(--border));
+  animation: slideIn .25s ease-out;
+}
+.rtm-head { display: flex; align-items: center; gap: 8px; }
+.rtm-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); }
+.rtm-head .muted { margin-left: auto; }
+.rtm-title { display: block; font-size: 17px; margin: 10px 0 4px; }
+.rtm-panel p b { color: var(--text); }
+.rtm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.rtm-actions .btn { height: 42px; }
+.rtm-chip { background: rgba(245,184,65,.15); color: var(--accent); }
+.rtm-count { margin-left: 6px; font-size: 10px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: rgba(245,184,65,.14); color: var(--accent); vertical-align: 1px; }
+.rtm-tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: rgba(245,184,65,.2); color: var(--accent); }
+.os-mark.rtm { background: rgba(245,184,65,.16); color: var(--accent); }
+.feed .rtm .ic { background: rgba(245,184,65,.15); color: var(--accent); }
+
 .purses { list-style: none; margin: 0; padding: 0 8px 8px; }
 .purses li { display: flex; gap: 10px; align-items: center; padding: 10px 8px; border-radius: 10px; transition: background .2s; }
 .purses li + li { border-top: 1px solid var(--border); }

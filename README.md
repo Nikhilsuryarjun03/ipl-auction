@@ -32,7 +32,9 @@ The host picks Cricket or Football when creating a room, then an auction mode in
 | IPL 2026 Mock Auction | 350-player pool; teams start with their real 2026 retentions | each team's real purse left | up to 25 (retained players count) |
 | Football Auction | 361 European players with position and rating (`playauction_football_auction.csv`); 50 clubs | €1000M | up to 25 |
 
-Features: cricket and football, room codes and invite links, five auction modes, IPL-style sets (Marquee first), team claiming,
+Features: cricket and football, room codes and invite links, five auction modes, Right to Match (RTM) using each
+player's previous team from the latest season data (on by default in the Mega Auction, 6 cards per team; the host can change
+it for the Mega and Mock auctions), players returning to the auction when someone leaves mid-auction, IPL-style sets (Marquee first), team claiming,
 host controls (pause, close lot, end, bid timer), an unsold-players second round, an auction board
 (upcoming, sold, unsold, leaderboard), team squads by role, an activity feed with chat, Playing XI with
 Impact Player, countdown sounds, reconnect after a refresh and spacebar to bid.

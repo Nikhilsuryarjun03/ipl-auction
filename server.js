@@ -30,7 +30,7 @@ const teamName = (room, id) => teamsOf(room).find(t => t.id === id).name;
 const META = {
   rules: RULES, players: PLAYERS,
   sports: Object.fromEntries(Object.entries(SPORTS).map(([k, s]) => [k, { name: s.name, tag: s.tag, teams: s.teams, defaultMode: s.defaultMode }])),
-  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size, retentions: !!m.retentions, sport: m.sport }]))
+  modes: Object.fromEntries(Object.entries(MODES).map(([k, m]) => [k, { name: m.name, desc: m.desc, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, size: m.size, retentions: !!m.retentions, sport: m.sport, rtm: m.rtm != null }]))
 };
 
 function newCode() {
@@ -41,7 +41,7 @@ function newCode() {
 
 function rulesFor(room) {
   const m = MODES[room.mode];
-  return { ...RULES, mode: room.mode, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, bidSeconds: room.bidSeconds };
+  return { ...RULES, mode: room.mode, purse: m.purse, maxSquad: m.maxSquad, maxOverseas: m.maxOverseas, bidSeconds: room.bidSeconds, rtmCards: room.rtmCards };
 }
 
 function createRoom(sport) {
@@ -50,7 +50,8 @@ function createRoom(sport) {
     sport, mode: SPORTS[sport].defaultMode, bidSeconds: RULES.bidSeconds,
     members: new Map(), purse: {}, startPurse: {}, squads: {}, xi: {},
     queue: [], unsold: [], unsoldFinal: [], unsoldRound: false, soldLog: [],
-    lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | closed
+    rtmCards: 0, rtmLeft: {}, rtm: null, // Right to Match: cards per team, cards left, decision in progress
+    lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | rtm | closed
     result: null, paused: false, log: [], interval: null, nextTimer: null, cleanupTimer: null
   };
   resetTeams(room);
@@ -61,16 +62,18 @@ function createRoom(sport) {
 // Fresh purses and squads for the room's mode. In the mock auction teams start with their real retentions.
 function resetTeams(room) {
   const mode = MODES[room.mode];
-  room.purse = {}; room.startPurse = {}; room.squads = {}; room.xi = {};
+  room.purse = {}; room.startPurse = {}; room.squads = {}; room.xi = {}; room.rtmLeft = {};
+  room.rtmCards = mode.rtm || 0;
   teamsOf(room).forEach(t => {
     const kept = mode.retentions?.[t.id];
     room.purse[t.id] = room.startPurse[t.id] = kept ? kept.purse : mode.purse;
     room.squads[t.id] = kept ? kept.players.map(p => ({ ...p })) : [];
     room.xi[t.id] = { xi: [], impact: null };
+    room.rtmLeft[t.id] = room.rtmCards;
   });
 }
 
-// kind: info | join | team | bid | sold | unsold | chat | host
+// kind: info | join | team | bid | sold | unsold | rtm | chat | host
 function addLog(room, text, kind = 'info', extra = {}) {
   room.log.push({ text, kind, t: Date.now(), ...extra });
   if (room.log.length > 300) room.log.shift();
@@ -93,9 +96,9 @@ function publicState(room) {
   return {
     code: room.code, hostId: room.hostId, phase: room.phase, sport: room.sport, mode: room.mode, rules: rulesFor(room),
     members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
-    teams: teamsOf(room).map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id] })),
+    teams: teamsOf(room).map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id], rtmLeft: room.rtmLeft[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
-    status: room.status, result: room.result, paused: room.paused,
+    status: room.status, result: room.result, paused: room.paused, rtm: room.rtm,
     nextBid: room.lot ? nextBid(room) : null,
     remaining: room.queue.length, unsoldRound: room.unsoldRound,
     upcoming: upcomingSets(room),
@@ -139,29 +142,162 @@ function nextLot(room) {
 
 // The clock only sends the seconds left; everything else goes out with full state updates.
 function tick(room) {
-  if (room.phase !== 'auction' || room.status !== 'live' || room.paused) return;
+  if (room.phase !== 'auction' || room.paused || (room.status !== 'live' && room.status !== 'rtm')) return;
   room.timeLeft -= 1;
-  if (room.timeLeft <= 0) closeLot(room);
-  else io.to(room.code).emit('tick', room.timeLeft);
+  if (room.timeLeft > 0) return io.to(room.code).emit('tick', room.timeLeft);
+  if (room.status === 'live') closeLot(room);
+  else rtmTimeout(room);
 }
 
 function closeLot(room) {
   const p = room.lot;
   if (room.leader) {
-    room.squads[room.leader].push({ ...p, price: room.bid });
-    room.purse[room.leader] -= room.bid;
-    room.soldLog.push({ id: p.id, teamId: room.leader, price: room.bid });
-    room.result = { sold: true, teamId: room.leader, price: room.bid };
-    addLog(room, `${p.name} sold to ${teamName(room, room.leader)} for ${money(room)(room.bid)}`, 'sold', { teamId: room.leader });
-  } else {
-    if (room.unsoldRound) room.unsoldFinal.push(p.id);
-    else room.unsold.push(p);
-    room.result = { sold: false };
-    addLog(room, `${p.name} went unsold`, 'unsold');
+    const rtmTeam = rtmTeamFor(room);
+    return rtmTeam ? startRtm(room, rtmTeam) : sell(room, room.leader, room.bid);
   }
-  room.status = 'closed'; room.timeLeft = 0;
+  if (room.unsoldRound) room.unsoldFinal.push(p.id);
+  else room.unsold.push(p);
+  room.result = { sold: false };
+  addLog(room, `${p.name} went unsold`, 'unsold');
+  endLot(room);
+}
+
+function sell(room, teamId, price, viaRtm = false) {
+  const p = room.lot;
+  room.squads[teamId].push({ ...p, price, ...(viaRtm ? { rtm: true } : {}) });
+  room.purse[teamId] -= price;
+  room.soldLog.push({ id: p.id, teamId, price, ...(viaRtm ? { rtm: true } : {}) });
+  room.result = { sold: true, teamId, price, rtm: viaRtm };
+  room.bid = price; room.leader = teamId;
+  addLog(room, `${p.name} sold to ${teamName(room, teamId)} for ${money(room)(price)}${viaRtm ? ' using RTM' : ''}`, 'sold', { teamId });
+  endLot(room);
+}
+
+function endLot(room) {
+  room.rtm = null; room.status = 'closed'; room.timeLeft = 0;
   broadcast(room);
   room.nextTimer = setTimeout(() => nextLot(room), RULES.breakSeconds * 1000);
+}
+
+// ---------- Right to Match ----------
+// The player's previous team (from the latest season data) may match the winning bid if a person owns that
+// team, it has RTM cards left and it could afford the player. The winner then gets one final raise, and the
+// previous team can match that too. A card is only used when the previous team actually takes the player.
+function cannotBuy(room, teamId, amount) {
+  const rules = rulesFor(room), squad = room.squads[teamId];
+  if (room.purse[teamId] < amount) return 'Not enough left in your purse.';
+  if (squad.length >= rules.maxSquad) return 'Your squad is full.';
+  if (rules.maxOverseas != null && room.lot.overseas && squad.filter(p => p.overseas).length >= rules.maxOverseas) return 'Overseas limit reached.';
+  return null;
+}
+const ownerOf = (room, teamId) => [...room.members.values()].find(m => m.teamId === teamId);
+
+function rtmTeamFor(room) {
+  const prev = room.lot.prevTeam;
+  if (!room.rtmCards || !prev || prev === room.leader || !room.rtmLeft[prev]) return null;
+  if (!ownerOf(room, prev) || cannotBuy(room, prev, room.bid)) return null;
+  return prev;
+}
+
+function startRtm(room, team) {
+  room.rtm = { team, winner: room.leader, price: room.bid, step: 'offer' };
+  room.status = 'rtm'; room.timeLeft = RULES.rtmSeconds;
+  addLog(room, `${team} can use Right to Match on ${room.lot.name} (${room.leader} won at ${money(room)(room.bid)})`, 'rtm', { teamId: team });
+  broadcast(room);
+}
+
+// Time ran out (or the host closed the lot): the previous team declines, or the winner doesn't raise.
+function rtmTimeout(room) {
+  const { step, team, winner, price } = room.rtm;
+  if (step === 'raise') {
+    addLog(room, `${winner} didn't raise in time`, 'rtm', { teamId: winner });
+    return rtmTake(room);
+  }
+  addLog(room, `${team} didn't use RTM in time`, 'rtm', { teamId: team });
+  sell(room, winner, price);
+}
+
+// The previous team takes the player at the current RTM price, using a card.
+function rtmTake(room) {
+  const { team, price } = room.rtm;
+  room.rtmLeft[team] -= 1;
+  sell(room, team, price, true);
+}
+
+// Returns an error message, or null when the action went through.
+function rtmAction(room, member, action, amount) {
+  const r = room.rtm, f = money(room);
+  if (!r || room.status !== 'rtm') return 'There is no Right to Match decision right now.';
+  if (room.paused) return 'The auction is paused.';
+  const mine = member.teamId;
+  if (r.step === 'offer' || r.step === 'match') {
+    if (mine !== r.team) return `Waiting for ${r.team} to decide.`;
+    if (action === 'decline') {
+      addLog(room, `${r.team} declined RTM`, 'rtm', { teamId: r.team });
+      sell(room, r.winner, r.price);
+      return null;
+    }
+    if (r.step === 'match' && action === 'match') {
+      addLog(room, `${r.team} matched ${f(r.price)}`, 'rtm', { teamId: r.team });
+      rtmTake(room);
+      return null;
+    }
+    if (r.step === 'offer' && action === 'use') {
+      r.step = 'raise'; room.timeLeft = RULES.rtmSeconds;
+      addLog(room, `${r.team} used RTM. ${r.winner} gets one final raise.`, 'rtm', { teamId: r.team });
+      broadcast(room);
+      return null;
+    }
+    return 'That option is not available now.';
+  }
+  // step 'raise': the winning bidder raises once, or lets the previous team have the player.
+  if (mine !== r.winner) return `Waiting for ${r.winner} to decide.`;
+  if (action === 'noraise') {
+    addLog(room, `${r.winner} won't raise, so ${r.team} gets ${room.lot.name}`, 'rtm', { teamId: r.winner });
+    rtmTake(room);
+    return null;
+  }
+  if (action !== 'raise') return 'That option is not available now.';
+  amount = Number(amount);
+  if (!Number.isFinite(amount) || amount <= r.price || amount % SPORTS[room.sport].purseStep) return `Raise above ${f(r.price)}.`;
+  const blocked = cannotBuy(room, r.winner, amount);
+  if (blocked) return blocked;
+  r.price = amount;
+  addLog(room, `${r.winner} raised to ${f(amount)} for ${room.lot.name}`, 'rtm', { teamId: r.winner });
+  if (cannotBuy(room, r.team, amount)) {
+    addLog(room, `${r.team} can't afford to match`, 'rtm', { teamId: r.team });
+    sell(room, r.winner, amount);
+    return null;
+  }
+  r.step = 'match'; room.timeLeft = RULES.rtmSeconds;
+  broadcast(room);
+  return null;
+}
+
+// ---------- players leaving mid-auction ----------
+// Everything the team bought goes back into the auction (retained players stay) and the money is refunded.
+function releaseTeam(room, teamId, who) {
+  const bought = room.squads[teamId].filter(p => !p.retained);
+  if (bought.length) {
+    room.squads[teamId] = room.squads[teamId].filter(p => p.retained);
+    room.purse[teamId] += bought.reduce((sum, p) => sum + p.price, 0);
+    const ids = new Set(bought.map(p => p.id));
+    room.soldLog = room.soldLog.filter(s => !ids.has(s.id));
+    room.queue.push(...bought.map(({ price, rtm, ...p }) => ({ ...p, set: 'Returned players' })));
+    addLog(room, `${who} left, so ${bought.length} player${bought.length === 1 ? '' : 's'} from ${teamName(room, teamId)} ${bought.length === 1 ? 'is' : 'are'} back in the auction`, 'host');
+  }
+  room.xi[teamId] = { xi: [], impact: null };
+  room.rtmLeft[teamId] = room.rtmCards;
+  if (room.status === 'live' && room.leader === teamId) {
+    room.bid = null; room.leader = null; room.timeLeft = room.bidSeconds;
+    addLog(room, `Bidding on ${room.lot.name} restarts because ${teamId} left`, 'host');
+  } else if (room.status === 'rtm' && room.rtm.team === teamId) {
+    addLog(room, `${teamId} left, so RTM is off`, 'rtm');
+    sell(room, room.rtm.winner, room.rtm.price);
+  } else if (room.status === 'rtm' && room.rtm.winner === teamId) {
+    room.rtm = null; room.status = 'live'; room.bid = null; room.leader = null; room.timeLeft = room.bidSeconds;
+    addLog(room, `Bidding on ${room.lot.name} restarts because ${teamId} left`, 'host');
+  }
 }
 
 function finish(room) {
@@ -190,13 +326,7 @@ function canBid(room, teamId) {
   if (room.phase !== 'auction' || room.status !== 'live' || room.paused) return 'Bidding is closed right now.';
   if (!teamId) return 'Pick a team to bid.';
   if (room.leader === teamId) return 'You already hold the top bid.';
-  const rules = rulesFor(room);
-  const amount = nextBid(room);
-  const squad = room.squads[teamId];
-  if (room.purse[teamId] < amount) return 'Not enough left in your purse.';
-  if (squad.length >= rules.maxSquad) return 'Your squad is full.';
-  if (rules.maxOverseas != null && room.lot.overseas && squad.filter(p => p.overseas).length >= rules.maxOverseas) return 'Overseas limit reached.';
-  return null;
+  return cannotBuy(room, teamId, nextBid(room));
 }
 
 // ---------- sockets ----------
@@ -280,6 +410,22 @@ io.on('connection', socket => {
     broadcast(r);
   });
 
+  socket.on('rtm', ({ action, amount } = {}) => {
+    const r = room(), m = member(); if (!r || !m) return;
+    const err = rtmAction(r, m, action, amount);
+    if (err) socket.emit('toast', err);
+  });
+
+  socket.on('setRtm', ({ cards } = {}) => {
+    const r = room(); if (!r || !isHost() || r.phase !== 'lobby' || MODES[r.mode].rtm == null) return;
+    const n = Number(cards);
+    if (!RULES.rtmOptions.includes(n) || n === r.rtmCards) return;
+    r.rtmCards = n;
+    Object.keys(r.rtmLeft).forEach(id => (r.rtmLeft[id] = n));
+    addLog(r, n ? `Right to Match: ${n} card${n === 1 ? '' : 's'} per team` : 'Right to Match turned off', 'host');
+    broadcast(r);
+  });
+
   socket.on('chat', ({ text } = {}) => {
     const r = room(), m = member(); if (!r || !m) return;
     text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -345,9 +491,15 @@ io.on('connection', socket => {
     addLog(r, r.paused ? 'Auction paused by the host' : 'Auction resumed', 'host');
     broadcast(r);
   });
-  socket.on('skip', () => { const r = room(); if (r && isHost() && r.status === 'live') closeLot(r); });
+  // "Close lot" ends bidding, or settles a Right to Match decision with its default.
+  socket.on('skip', () => {
+    const r = room(); if (!r || !isHost()) return;
+    if (r.status === 'live') closeLot(r);
+    else if (r.status === 'rtm') rtmTimeout(r);
+  });
   socket.on('end', () => {
     const r = room(); if (!r || !isHost() || r.phase !== 'auction') return;
+    if (r.status === 'rtm') sell(r, r.rtm.winner, r.rtm.price);
     clearTimeout(r.nextTimer); finish(r);
   });
 
@@ -355,7 +507,10 @@ io.on('connection', socket => {
     const r = room(), m = member(); if (!r || !m) return;
     socket.leave(r.code);
     addLog(r, `${m.name} left the room`, 'join', { name: m.name });
-    if (r.phase === 'lobby') r.members.delete(m.id); else m.online = false;
+    // Mid-auction, a leaving player's team is freed and its players go back into the auction.
+    if (r.phase === 'auction' && m.teamId) releaseTeam(r, m.teamId, m.name);
+    if (r.phase === 'finished') m.online = false; else r.members.delete(m.id);
+    if (!r.members.size) { clearInterval(r.interval); clearTimeout(r.nextTimer); rooms.delete(r.code); socket.data = {}; return; }
     if (r.hostId === m.id) {
       const next = [...r.members.values()].find(x => x.online);
       if (next) { r.hostId = next.id; addLog(r, `${next.name} is now the host`, 'host'); }
