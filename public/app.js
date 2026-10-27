@@ -38,6 +38,8 @@ const roleGroups = () => ROLE_GROUPS_BY[sportNow()];
 const XI = () => (isFootball() ? 'Starting XI' : 'Playing XI');
 const TEAM_WORD = () => (isFootball() ? 'club' : 'franchise');
 const hasOverseas = () => state?.rules.maxOverseas != null;
+// Modes with previous-team data (Mega, Mock) support Right to Match.
+const rtmMode = () => !!meta?.modes[state?.mode]?.rtm;
 // Short line under a player's name: "Batter · AUS" or "RW · 89 rated".
 const playerSub = p => p.position
   ? `${esc(p.position)} · <span class="rating">${p.rating ?? '–'}</span>`
@@ -69,69 +71,15 @@ const teamVars = t => `--c:${t.color};--c2:${t.alt || t.color};--ink:${ink(t.col
 const badge = (t, size = '') => `<span class="badge ${size}" style="${teamVars(t)}">${esc(t.id)}${t.logo
   ? `<img src="${esc(t.logo)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : ''}</span>`;
 
-// ---------- player photos (Wikipedia, cached per browser) ----------
-const IMG_KEY = 'player-img-v1';
-const imgCache = (() => { try { return JSON.parse(localStorage.getItem(IMG_KEY)) || {}; } catch { return {}; } })();
-const imgPending = {};
-const imgQueue = [];
-let imgActive = 0;
-
-function lookupImg(name) {
-  return new Promise(resolve => { imgQueue.push({ name, resolve }); pumpImgQueue(); });
-}
-function pumpImgQueue() {
-  while (imgActive < 4 && imgQueue.length) {
-    const { name, resolve } = imgQueue.shift();
-    imgActive++;
-    fetchWikiImg(name).then(resolve, () => resolve(null)).finally(() => { imgActive--; pumpImgQueue(); });
-  }
-}
-async function fetchWikiImg(name) {
-  const q = new URLSearchParams({
-    action: 'query', format: 'json', origin: '*', generator: 'search',
-    gsrsearch: `${name} ${isFootball() ? 'footballer' : 'cricketer'}`, gsrlimit: '5', prop: 'pageimages', piprop: 'thumbnail', pithumbsize: '480'
-  });
-  const res = await fetch(`https://en.wikipedia.org/w/api.php?${q}`);
-  if (!res.ok) throw new Error('lookup failed');
-  const pages = Object.values((await res.json()).query?.pages || {}).sort((a, b) => a.index - b.index);
-  const words = name.toLowerCase().split(/[\s.]+/).filter(w => w.length > 2);
-  const hit = pages.find(p => p.thumbnail && words.every(w => p.title.toLowerCase().replace(/\./g, '').includes(w)));
-  return hit ? hit.thumbnail.source : '';
-}
-function playerImg(name, own) {
-  if (own) return Promise.resolve(own);
-  if (name in imgCache) return Promise.resolve(imgCache[name]);
-  return (imgPending[name] ||= lookupImg(name).then(url => {
-    delete imgPending[name];
-    if (url !== null) { // only cache real answers, not network failures
-      imgCache[name] = url;
-      try { localStorage.setItem(IMG_KEY, JSON.stringify(imgCache)); } catch {}
-    }
-    return url;
-  }));
-}
-
-// Photos already known are drawn straight away so re-renders don't flicker; others load in hydrateImages().
+// ---------- player photos ----------
+// The server sends each player's photo as a small local file (/players/<name>.jpg); players without one
+// show their initials. Everyone in the room sees the same picture.
 function avatar(p, size = '') {
-  const url = p.img || imgCache[p.name];
-  const known = p.img || p.name in imgCache;
-  return `<span class="avatar ${size} ${url ? 'has-img' : ''}" data-pimg="${esc(p.name)}" data-own="${esc(p.img || '')}" ${known ? 'data-done="1"' : ''}>
-    <span>${esc(initials(p.name))}</span>${url ? `<img src="${esc(url)}" alt="" referrerpolicy="no-referrer">` : ''}</span>`;
+  return `<span class="avatar ${size} ${p.img ? 'has-img' : ''}"><span>${esc(initials(p.name))}</span>${p.img
+    ? `<img src="${esc(p.img)}" alt="" loading="lazy" decoding="async">` : ''}</span>`;
 }
-
-function hydrateImages() {
-  document.querySelectorAll('[data-pimg]:not([data-done])').forEach(el => {
-    el.dataset.done = '1';
-    playerImg(el.dataset.pimg, el.dataset.own).then(url => {
-      if (!url || !el.isConnected) return;
-      const img = new Image();
-      img.alt = ''; img.referrerPolicy = 'no-referrer'; img.src = url;
-      img.onload = () => el.classList.add('has-img');
-      img.onerror = () => img.remove();
-      el.append(img);
-    });
-  });
-}
+// Earlier versions cached Wikipedia lookups in the browser; clear that out.
+try { localStorage.removeItem('player-img-v1'); } catch {}
 
 // Broken logos fall back to the team code; broken photos fall back to initials.
 document.addEventListener('error', e => {
@@ -197,7 +145,17 @@ socket.on('meta', m => {
   if (fp) fp.textContent = m.players.length.toLocaleString();
   if (fm) fm.textContent = Object.keys(m.modes).length;
 });
-socket.on('state', s => { const prev = state; state = s; playSounds(prev, s); celebrate(); render(); });
+socket.on('state', s => {
+  const prev = state; state = s;
+  playSounds(prev, s); celebrate();
+  if (s.ranking && s.ranking.at !== prev?.ranking?.at) {
+    view = 'ranking'; draft = null;
+    const top = team(s.ranking.results[0].teamId);
+    confetti([top.color, top.alt || top.color, '#F5B841', '#FFFFFF']); sfx.sold();
+    toast(`${top.name} top the rankings!`);
+  }
+  render();
+});
 // The server sends just the seconds left once a second; beep in the last few seconds.
 socket.on('tick', t => {
   if (!state) return;
@@ -231,7 +189,6 @@ function render(force) {
   else if (state.phase === 'auction') auctionView();
   else resultsView();
   restoreUI(ui);
-  hydrateImages();
 }
 
 // Re-renders replace the page, so keep the chat draft, focus and scroll positions across them.
@@ -536,7 +493,7 @@ const rtmDecider = s => (s.rtm.step === 'raise' ? s.rtm.winner : s.rtm.team);
 
 // The team that could use RTM on this player: its previous team, owned by someone, with cards left.
 function rtmHolder(p) {
-  if (!state.rules.rtmCards || !p.prevTeam) return null;
+  if (!rtmMode() || !p.prevTeam) return null;
   const t = team(p.prevTeam);
   return t && t.owner && t.rtmLeft > 0 ? t : null;
 }
@@ -718,12 +675,13 @@ function openPurseEditor() {
   const U = fb ? { factor: 1, max: 10000, step: 1, pre: '€', post: 'M', unit: '€M', chips: [500, 750, 1000, 1500], eg: 1000 }
                : { factor: 100, max: 1000, step: 0.05, pre: '₹', post: 'cr', unit: 'crore', chips: [80, 100, 120, 150], eg: 120 };
   const cr = l => +(l / U.factor).toFixed(2);
+  const rtm = rtmMode(), rtmMax = Math.max(...state.rules.rtmOptions);
   // 50 football clubs is too many to list; only clubs someone owns matter there.
   const teams = fb ? state.teams.filter(t => t.owner) : state.teams;
   modal.innerHTML = `<div class="sheet-backdrop" id="purseSheet">
     <section class="sheet wide" role="dialog" aria-modal="true" aria-labelledby="purseTitle">
       <button class="icon-btn sm sheet-close" data-close type="button" aria-label="Close">✕</button>
-      <h2 id="purseTitle">Edit purses</h2>
+      <h2 id="purseTitle">${rtm ? 'Edit purses & RTM' : 'Edit purses'}</h2>
       <p class="muted small">Amounts in ${U.unit}. ${state.phase === 'auction' ? 'Changes apply straight away and are shown in the activity feed. Money already spent stays spent.' : 'Applies to this auction only.'}</p>
       <div class="purse-all">
         <label for="pAll">Set every team to</label>
@@ -739,6 +697,7 @@ function openPurseEditor() {
           ${badge(t, 'sm')}
           <span class="pr-name"><b>${esc(t.name)}</b><span class="muted small">${t.owner ? esc(t.owner) : 'No owner'}${t.squad.length ? ` · ${t.squad.length} players` : ''}</span></span>
           <span class="pr-input"><span class="muted">${U.pre}</span><input type="number" min="0" max="${U.max}" step="${U.step}" inputmode="decimal" data-team="${t.id}" value="${cr(t.purse)}" aria-label="${esc(t.name)} purse in ${U.unit}" /><span class="muted">${U.post}</span></span>
+          ${rtm ? `<span class="pr-input rtm-in"><span class="muted">RTM</span><input type="number" min="0" max="${rtmMax}" step="1" inputmode="numeric" data-rtm="${t.id}" value="${t.rtmLeft}" aria-label="${esc(t.name)} Right to Match cards" /></span>` : ''}
         </label>`).join('')}
       </div>
       <div class="error" id="pErr"></div>
@@ -758,16 +717,22 @@ function openPurseEditor() {
   pAllBtn.onclick = () => fillAll(pAll.value);
   pAll.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); fillAll(pAll.value); } };
   pSave.onclick = () => {
-    const purses = {};
+    const purses = {}, rtmCards = {};
+    for (const i of sheet.querySelectorAll('input[data-rtm]')) {
+      if (i.value === '') continue;
+      const n = Number(i.value);
+      if (!Number.isInteger(n) || n < 0 || n > rtmMax) return (pErr.textContent = `RTM cards must be a whole number from 0 to ${rtmMax}.`);
+      rtmCards[i.dataset.rtm] = n;
+    }
     for (const i of inputs) {
       if (i.value === '') continue;
       const v = Number(i.value);
       if (!(v >= 0 && v <= U.max)) return (pErr.textContent = `Each purse must be between ${U.pre}0 and ${U.pre}${U.max}${fb ? 'M' : ' cr'}.`);
       purses[i.dataset.team] = Math.round(v * U.factor);
     }
-    socket.emit('setPurses', { purses }, res => {
+    socket.emit('setPurses', { purses, rtm: rtm ? rtmCards : undefined }, res => {
       if (!res?.ok) return (pErr.textContent = res?.error || 'Could not save purses.');
-      close(); toast('Purses updated.');
+      close(); toast(rtm ? 'Purses and RTM cards updated.' : 'Purses updated.');
     });
   };
   setTimeout(() => pAll.focus(), 200);
@@ -790,7 +755,7 @@ function teamsCard() {
   const r = state.rules;
   return `<section class="card">
     <div class="card-head"><h2>Teams</h2>
-      <div class="head-links">${isHost() ? '<button class="link accent" data-act="purses">Edit purses</button>' : ''}<button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">${XI()}s</button></div>
+      <div class="head-links">${isHost() ? `<button class="link accent" data-act="purses">${rtmMode() ? 'Edit purses & RTM' : 'Edit purses'}</button>` : ''}<button class="link" data-act="squads">Squads</button><button class="link" data-act="xi">${XI()}s</button></div>
     </div>
     <ul class="purses">
       ${state.teams.filter(t => t.owner).map(t => {
@@ -799,7 +764,7 @@ function teamsCard() {
           <button class="p-row" data-act="tteam" data-team="${t.id}" aria-expanded="${open}">
             ${badge(t, 'sm')}
             <div class="p-info">
-              <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span>${state.rules.rtmCards ? `<span class="rtm-count" title="Right to Match cards left">RTM ${t.rtmLeft}</span>` : ''}</span><span class="money">${fmt(t.purse)}</span></div>
+              <div class="p-top"><span class="p-name">${esc(t.owner)} <span class="muted">· ${esc(t.id)}</span>${rtmMode() && (state.rules.rtmCards || t.rtmLeft) ? `<span class="rtm-count" title="Right to Match cards left">RTM ${t.rtmLeft}</span>` : ''}</span><span class="money">${fmt(t.purse)}</span></div>
               <div class="meter"><span style="width:${(t.purse / (t.startPurse || 1)) * 100}%"></span></div>
               <div class="p-sub">${t.squad.length}/${r.maxSquad} players${hasOverseas() ? ` · ${t.squad.filter(p => p.overseas).length}/${r.maxOverseas} overseas` : ''}</div>
             </div>
@@ -900,7 +865,7 @@ function subNav() {
   const tab = (v, label) => `<button class="${cur === v ? 'on' : ''}" data-act="${v}">${label}</button>`;
   return `<nav class="subnav">
     ${state.phase === 'auction' ? `<button class="btn sm" data-act="board">${ICON.back}Back to auction</button>` : ''}
-    <div class="seg">${tab('squads', 'Squads')}${tab('xi', `${XI()}s`)}${tab('summary', 'Summary')}</div>
+    <div class="seg">${tab('squads', 'Squads')}${tab('xi', `${XI()}s`)}${tab('summary', 'Summary')}${state.ranking ? tab('ranking', 'Rankings') : ''}</div>
   </nav>`;
 }
 
@@ -932,6 +897,7 @@ function squadsPage(final) {
     <div class="page-head"><div><h1>${final ? 'Final squads' : 'Squads so far'}</h1>
       <p class="muted">${final ? `The auction is complete. Pick your ${XI()} from the ${XI()}s tab.` : 'Updated live as players are sold.'}</p></div></div>
     ${subNav()}
+    ${rankBar()}
     <div class="grid-cards">
       ${teams.map(t => `<section class="card team-card-lg">
           ${teamHead(t, t.id === mine && t.squad.length ? '<button class="btn sm" data-act="xi-edit">Pick XI</button>' : '')}
@@ -949,10 +915,92 @@ function squadsPage(final) {
   </main>`;
 }
 
+// ---------- team rankings ----------
+// Shown after the auction: who still has to announce an XI, and the host's "Rank teams" button.
+function rankBar() {
+  if (state.phase !== 'finished') return '';
+  const owned = state.teams.filter(t => t.owner);
+  const pending = owned.filter(t => t.xi.xi.length < state.rules.xiSize);
+  const r = state.ranking;
+  let text, action = '';
+  if (pending.length) {
+    text = `Waiting for ${pending.map(t => esc(t.id)).join(', ')} to announce a full ${XI()} before the teams can be ranked.`;
+    if (isHost()) action = '<button class="btn primary" disabled>Rank teams</button>';
+  } else if (r && !r.stale) {
+    text = 'The teams have been ranked.';
+    action = '<button class="btn primary" data-act="ranking">View rankings</button>';
+  } else {
+    text = r ? `Some ${XI()}s changed since the last ranking.` : `Every team has announced its ${XI()}. Ready to rank them on ${isFootball() ? 'ratings, positions' : 'IPL stats'} and balance.`;
+    action = isHost() ? `<button class="btn primary" data-act="rank">${r ? 'Rank again' : 'Rank teams'}</button>`
+      : `<span class="muted small">Waiting for the host to rank the teams…</span>${r ? '<button class="btn" data-act="ranking">View last ranking</button>' : ''}`;
+  }
+  return `<div class="rank-bar card"><span class="rank-bar-icon" aria-hidden="true">🏆</span><p>${text}</p><div class="rank-bar-actions">${action}</div></div>`;
+}
+
+const tone = score => (score >= 70 ? 'good' : score >= 45 ? 'mid' : 'low');
+
+function rankingPage() {
+  const { results, stale } = state.ranking;
+  const aspects = results[0].aspects.map(a => a.key);
+  const label = k => results[0].aspects.find(a => a.key === k).label;
+  const best = Object.fromEntries(aspects.map(k => [k, Math.max(...results.map(r => r.aspects.find(a => a.key === k).score))]));
+  app.innerHTML = `${topBar()}
+  <main class="page">
+    <div class="page-head"><div><h1>Team rankings</h1>
+      <p class="muted">Every ${XI()} scored 0–100 on each aspect, then combined. ${isFootball()
+        ? 'Based on player ratings, positions and formation.'
+        : 'Based on IPL career stats (runs, strike rate, wickets, economy, matches); players without stats are estimated from their base price.'}</p></div></div>
+    ${stale ? `<div class="banner paused">Some ${XI()}s changed after this ranking. ${isHost() ? '<button class="link accent" data-act="rank">Rank again</button>' : 'The host can rank again.'}</div>` : ''}
+    ${subNav()}
+    <section class="card compare">
+      <div class="card-head"><h2>Compare every aspect</h2><span class="muted small">Best in each column highlighted</span></div>
+      <div class="compare-scroll"><table class="lb compare-table">
+        <thead><tr><th>#</th><th>Team</th>${aspects.map(k => `<th>${esc(label(k))}</th>`).join('')}<th>Overall</th></tr></thead>
+        <tbody>${results.map(r => {
+          const t = team(r.teamId);
+          return `<tr class="${t.id === me()?.teamId ? 'me' : ''}">
+            <td class="rank">${r.rank}</td>
+            <td><span class="lb-team">${badge(t, 'xs')}<b>${esc(t.id)}</b><span class="muted">${esc(t.owner || '')}</span></span></td>
+            ${r.aspects.map(a => `<td class="${a.score === best[a.key] ? 'best' : ''}">${a.score}</td>`).join('')}
+            <td><b class="overall">${r.overall}</b></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </section>
+    <div class="rank-list">
+      ${results.map(r => {
+        const t = team(r.teamId);
+        return `<section class="card rank-card ${r.rank === 1 ? 'first' : ''}" style="${teamVars(t)}">
+          <div class="rank-top">
+            <span class="rank-no">#${r.rank}</span>
+            ${badge(t, 'md')}
+            <div class="th-text"><h3>${esc(t.name)}</h3><span>${esc(t.owner || '')}</span></div>
+            <div class="rank-score"><b>${r.overall}</b><span>/100</span></div>
+          </div>
+          <p class="rank-summary">${esc(r.summary)}</p>
+          <div class="aspects">${r.aspects.map(a => `<div class="aspect">
+            <span class="a-label">${esc(a.label)}</span>
+            <span class="abar"><span class="${tone(a.score)}" style="width:${a.score}%"></span></span>
+            <b>${a.score}</b>
+          </div>`).join('')}</div>
+          <div class="rank-notes">
+            ${r.strengths.map(x => `<span class="note good">Strong: ${esc(x)}</span>`).join('')}
+            ${r.weaknesses.map(x => `<span class="note low">Weak: ${esc(x)}</span>`).join('')}
+            ${r.issues.map(x => `<span class="note mid">${esc(x)}</span>`).join('')}
+            ${!r.issues.length ? '<span class="note good">Well balanced</span>' : ''}
+          </div>
+          <p class="muted small">Key players: ${r.key.map(esc).join(', ')}</p>
+        </section>`;
+      }).join('')}
+    </div>
+  </main>`;
+}
+
 function resultsView() {
   if (view === 'xi') xiPage();
   else if (view === 'xi-edit') xiEditPage();
   else if (view === 'summary') summaryPage();
+  else if (view === 'ranking' && state.ranking) rankingPage();
   else squadsPage(true);
 }
 
@@ -967,6 +1015,7 @@ function xiPage() {
   <main class="page">
     <div class="page-head"><div><h1>${XI()}s</h1><p class="muted">${isFootball() ? 'Each owner names a starting 11, goalkeeper first.' : 'Each owner names 11 players in batting order plus one Impact Player.'}</p></div></div>
     ${subNav()}
+    ${rankBar()}
     <div class="grid-cards">
       ${state.teams.filter(t => t.owner).map(t => {
         const byId = new Map(t.squad.map(p => [p.id, p]));
@@ -1121,7 +1170,8 @@ app.addEventListener('click', e => {
   else if (act === 'sound') { sfx.toggle(); render(true); toast(sfx.on ? 'Sounds on' : 'Sounds off'); }
   else if (act === 'timer') socket.emit('setTimer', { seconds: Number(el.dataset.s) });
   else if (act === 'leave') { socket.emit('leave'); save(null); state = null; view = 'board'; draft = null; history.replaceState(null, '', '/'); render(true); }
-  else if (['squads', 'board', 'xi', 'xi-edit', 'summary'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
+  else if (act === 'rank') socket.emit('rankTeams', null, res => res?.ok || toast(res?.error || 'Could not rank the teams.'));
+  else if (['squads', 'board', 'xi', 'xi-edit', 'summary', 'ranking'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
   else if (act === 'mode') socket.emit('setMode', { mode: el.dataset.mode });
   else if (act === 'rtm') socket.emit('rtm', { action: el.dataset.a, amount: el.dataset.amt ? Number(el.dataset.amt) : undefined });
   else if (act === 'rtmcards') socket.emit('setRtm', { cards: Number(el.dataset.n) });

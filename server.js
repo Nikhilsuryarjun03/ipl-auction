@@ -4,10 +4,13 @@ const path = require('path');
 const crypto = require('crypto');
 const { Server } = require('socket.io');
 const { RULES, PLAYERS, MODES, SPORTS } = require('./data');
+const { rankTeams } = require('./rank');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { perMessageDeflate: { threshold: 2048 } }); // the player catalogue is large; compress it
+// Player photos never change for a given name, so browsers may keep them for a week.
+app.use('/players', express.static(path.join(__dirname, 'public', 'players'), { maxAge: '7d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = new Map();
@@ -50,6 +53,7 @@ function createRoom(sport) {
     sport, mode: SPORTS[sport].defaultMode, bidSeconds: RULES.bidSeconds,
     members: new Map(), purse: {}, startPurse: {}, squads: {}, xi: {},
     queue: [], unsold: [], unsoldFinal: [], unsoldRound: false, soldLog: [],
+    ranking: null, // team rankings from the XIs, once the host reveals them
     rtmCards: 0, rtmLeft: {}, rtm: null, // Right to Match: cards per team, cards left, decision in progress
     lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | rtm | closed
     result: null, paused: false, log: [], interval: null, nextTimer: null, cleanupTimer: null
@@ -98,7 +102,7 @@ function publicState(room) {
     members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
     teams: teamsOf(room).map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id], rtmLeft: room.rtmLeft[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
-    status: room.status, result: room.result, paused: room.paused, rtm: room.rtm,
+    status: room.status, result: room.result, paused: room.paused, rtm: room.rtm, ranking: room.ranking,
     nextBid: room.lot ? nextBid(room) : null,
     remaining: room.queue.length, unsoldRound: room.unsoldRound,
     upcoming: upcomingSets(room),
@@ -194,7 +198,7 @@ const ownerOf = (room, teamId) => [...room.members.values()].find(m => m.teamId 
 
 function rtmTeamFor(room) {
   const prev = room.lot.prevTeam;
-  if (!room.rtmCards || !prev || prev === room.leader || !room.rtmLeft[prev]) return null;
+  if (MODES[room.mode].rtm == null || !prev || prev === room.leader || !room.rtmLeft[prev]) return null;
   if (!ownerOf(room, prev) || cannotBuy(room, prev, room.bid)) return null;
   return prev;
 }
@@ -446,6 +450,7 @@ io.on('connection', socket => {
     const err = checkXI(r.squads[m.teamId], xi, impact, r.sport === 'football' ? null : RULES.xiMaxOverseas);
     if (err) return cb?.({ ok: false, error: err });
     r.xi[m.teamId] = { xi, impact };
+    if (r.ranking) r.ranking.stale = true; // the ranking no longer matches this XI
     addLog(r, `${teamName(r, m.teamId)} announced their ${r.sport === 'football' ? 'Starting' : 'Playing'} XI`, 'team', { teamId: m.teamId });
     broadcast(r);
     cb?.({ ok: true });
@@ -463,8 +468,19 @@ io.on('connection', socket => {
 
   // Host edits purses: { purses: { CSK: 12000, ... } } in lakhs. Works in the lobby and mid-auction;
   // the starting purse moves by the same amount so "spent" stays correct.
-  socket.on('setPurses', ({ purses } = {}, cb) => {
+  socket.on('setPurses', ({ purses, rtm } = {}, cb) => {
     const r = room(); if (!r || !isHost() || r.phase === 'finished') return cb?.({ ok: false, error: 'Only the host can edit purses.' });
+    const rtmChanges = [];
+    if (rtm && MODES[r.mode].rtm != null) {
+      const max = Math.max(...RULES.rtmOptions);
+      for (const t of teamsOf(r)) {
+        if (rtm[t.id] == null) continue;
+        const n = Number(rtm[t.id]);
+        if (!Number.isInteger(n) || n < 0 || n > max) return cb?.({ ok: false, error: `RTM cards must be between 0 and ${max}.` });
+        if (n !== r.rtmLeft[t.id]) { r.rtmLeft[t.id] = n; rtmChanges.push(`${t.id} ${n}`); }
+      }
+      if (rtmChanges.length) addLog(r, `Host changed RTM cards: ${rtmChanges.join(', ')}`, 'host');
+    }
     const changes = [];
     const step = SPORTS[r.sport].purseStep;
     for (const t of teamsOf(r)) {
@@ -477,10 +493,26 @@ io.on('connection', socket => {
       r.purse[t.id] = amount;
       changes.push([t.id, amount]);
     }
-    if (!changes.length) return cb?.({ ok: true });
+    if (!changes.length) { if (rtmChanges.length) broadcast(r); return cb?.({ ok: true }); }
     const same = changes.length === teamsOf(r).length && changes.every(([, a]) => a === changes[0][1]);
     const f = money(r);
     addLog(r, same ? `Host set every team's purse to ${f(changes[0][1])}` : `Host changed purses: ${changes.map(([id, a]) => `${id} ${f(a)}`).join(', ')}`, 'host');
+    broadcast(r);
+    cb?.({ ok: true });
+  });
+
+  // After the auction, the host ranks the teams from their announced XIs.
+  socket.on('rankTeams', (_, cb) => {
+    const r = room(); if (!r || !isHost()) return cb?.({ ok: false, error: 'Only the host can rank the teams.' });
+    if (r.phase !== 'finished') return cb?.({ ok: false, error: 'Rank the teams after the auction ends.' });
+    const owned = new Set([...r.members.values()].map(m => m.teamId).filter(Boolean));
+    const teams = teamsOf(r).filter(t => owned.has(t.id));
+    const pending = teams.filter(t => r.xi[t.id].xi.length < RULES.xiSize).map(t => t.id);
+    if (!teams.length) return cb?.({ ok: false, error: 'No teams to rank.' });
+    if (pending.length) return cb?.({ ok: false, error: `Waiting for ${pending.join(', ')} to announce a full XI.` });
+    r.ranking = { at: Date.now(), stale: false, results: rankTeams(r.sport, teams.map(t => ({ id: t.id, squad: r.squads[t.id], xi: r.xi[t.id] }))) };
+    const top = r.ranking.results[0];
+    addLog(r, `Team rankings are out: ${teamName(r, top.teamId)} top the table with ${top.overall}/100`, 'host');
     broadcast(r);
     cb?.({ ok: true });
   });

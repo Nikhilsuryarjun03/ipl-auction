@@ -18,8 +18,10 @@ Open it in two browser windows (or on two phones on the same Wi-Fi via your comp
   and the IPL 2026 mock auction pool plus each team's real retentions. Edit or replace a CSV to change a list.
 - `clubs.js` — the 50 football clubs (grouped by country) with colours and crests.
 - `players.js` — reads those CSVs and turns set codes (e.g. `BA1`, `UFA2`, `OSB-1`) into readable set names.
-- `photos.json` — player name → photo URL (from Wikipedia). Add or replace entries to change a player's picture;
-  players without one show their initials.
+- `photos.json` — player name → source photo (from Wikipedia). Each photo is downloaded once, cropped and shrunk to
+  `public/players/<name-slug>.jpg`, and the game serves that local copy. Players without one show their initials.
+  To use your own picture, save it as `public/players/<name-slug>.jpg` (e.g. `virat-kohli.jpg`) and add the name to photos.json.
+- `rank.js` — ranks the teams after the auction from their announced XIs (see below).
 - `public/` — the browser client (plain HTML/CSS/JS, no build step).
 
 The host picks Cricket or Football when creating a room, then an auction mode in the lobby:
@@ -43,3 +45,16 @@ Impact Player, countdown sounds, reconnect after a refresh and spacebar to bid.
 Any Node host that supports WebSockets works (Render, Railway, Fly.io, a VPS).
 Set the start command to `npm start`; the app reads `PORT` from the environment.
 Rooms live in memory, so they reset when the server restarts. Add Redis or a database if you need persistence.
+
+## Team rankings
+After the auction, once every team has announced a full XI, the host clicks **Rank teams**. Each XI is scored 0–100 on:
+
+- **Cricket:** top order (1–3), middle and finishing (4–7), bowling attack (best 5 bowling options), all-round depth,
+  IPL experience (matches) and team balance (wicket-keeper, 5+ bowling options, 6+ batters, pace and spin, Impact Player).
+  Ratings use IPL career stats (runs, strike rate, wickets, economy) from the player lists; players without stats are
+  estimated from their base price.
+- **Football:** goalkeeper, defence, midfield, attack, overall quality (ratings) and balance (one keeper, a sensible formation,
+  centre-backs and full-backs).
+
+The weighted total gives the ranking; the page compares every aspect side by side and lists each team's strengths, weaknesses
+and balance issues. If an XI changes afterwards, the host can rank again.

@@ -29,6 +29,13 @@ function setLabel(code) {
   return m[2] ? `${SET_NAMES[m[1]]} ${m[2]}` : SET_NAMES[m[1]];
 }
 
+// Pace or spin, when the set says so (FA = fast bowlers, SP = spinners, IP/OP = pacers, IS/OSS/ISA/OSA = spin).
+function bowlTypeOf(code) {
+  if (/^U?SP\d|^IS-|^OSS|^ISA-|^OSA-/.test(code)) return 'spin';
+  if (/^U?FA\d|^IP-|^OP-/.test(code)) return 'pace';
+  return null;
+}
+
 function readCsv(file) {
   const text = fs.readFileSync(path.join(__dirname, 'data', file), 'utf8').replace(/^﻿/, '').trim();
   const [head, ...rows] = text.split(/\r?\n/);
@@ -50,7 +57,7 @@ function toPlayer(r, id) {
   return {
     id, key: r.id, name: r.name, role: ROLE[r.role] || 'AR',
     country: COUNTRY[r.country] || r.country, overseas: r.isOverseas === 'true', capped: r.isCapped === 'true',
-    base: Number(r.basePrice), set: setLabel(r.set), prevTeam: r.previousTeam || '', stats: statsOf(r),
+    base: Number(r.basePrice), set: setLabel(r.set), bowlType: bowlTypeOf(r.set), prevTeam: r.previousTeam || '', stats: statsOf(r),
     ...(r.position ? { position: r.position, rating: num(r.rating) } : {})
   };
 }
@@ -63,7 +70,10 @@ let nextExtra = 1000;
 const lookup = r => byKey.get(r.id) || (() => { const p = toPlayer(r, nextExtra++); byKey.set(p.key, p); EXTRA.push(p); return p; })();
 
 // IPL 2026 mock: the auction pool, plus each team's retained players, purse and slots.
-const MOCK_POOL = readCsv('playauction_ipl2026_mock_auction.csv').map(r => ({ ...lookup(r), set: setLabel(r.set), prevTeam: r.previousTeam || '' }));
+const MOCK_POOL = readCsv('playauction_ipl2026_mock_auction.csv').map(r => {
+  const p = lookup(r);
+  return { ...p, set: setLabel(r.set), bowlType: p.bowlType || bowlTypeOf(r.set), prevTeam: r.previousTeam || '' };
+});
 const RETENTIONS = {};
 readCsv('playauction_ipl2026_mock_retentions.csv').forEach(r => {
   const t = (RETENTIONS[r.team] ||= { purse: Number(r.purse_left), slots: Number(r.available_slots), overseasSlots: Number(r.overseas_slots), players: [] });

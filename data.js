@@ -39,37 +39,76 @@ const TEAMS = [
 ];
 
 // ---------- players ----------
-// Pools are loaded from the CSVs in data/ by players.js. Photos come from photos.json (player name -> image URL,
-// from Wikipedia); players missing there are looked up in the browser. To use your own picture, add or edit the
-// entry in photos.json, e.g. "Virat Kohli": "/players/kohli.jpg" with the file in public/players/.
+// Pools are loaded from the CSVs in data/ by players.js.
+// Photos: photos.json lists each player's source image (from Wikipedia). Each one is downloaded once, cropped
+// and shrunk into public/players/<name-slug>.jpg, and the game serves that local copy. Players without a local
+// file show their initials. To use your own picture, save it as public/players/<name-slug>.jpg
+// (e.g. virat-kohli.jpg) and add the player to photos.json.
+const fs = require('fs');
+const path = require('path');
 const { MEGA, EXTRA, MOCK_POOL, RETENTIONS, LEGENDS, UPGRADED, FOOTBALL } = require('./players');
 const { CLUBS } = require('./clubs');
 let PHOTOS = {};
 try { PHOTOS = require('./photos.json'); } catch {}
 
-// Short names like "V Kohli" or "Mohammad Siraj" reuse a known photo when exactly one known player
-// has the same surname and first initial.
+const slug = name => name.normalize('NFKD').replace(/[^\x00-\x7F]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const localPhoto = name => {
+  const file = `${slug(name)}.jpg`;
+  return fs.existsSync(path.join(__dirname, 'public', 'players', file)) ? `/players/${file}` : '';
+};
+
+// Short names in the legends list ("V Kohli", "RG Sharma") reuse a known player's photo when exactly one
+// known player has the same surname, first initial and a compatible role, so "R Sharma" the leg-spinner
+// never gets Rohit Sharma's face.
 const norm = s => s.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+const roleOf = new Map([...MEGA, ...UPGRADED].map(p => [norm(p.name), p.role]));
+const compatible = (a, b) => a === b || a === 'AR' || b === 'AR' || (a !== 'BOWL' && b !== 'BOWL');
 const photoKeys = Object.keys(PHOTOS).map(k => [k, norm(k).split(' ')]);
-function photoFor(name, fuzzy = true) {
-  if (PHOTOS[name]) return PHOTOS[name];
+function photoName(name, role, fuzzy) {
+  if (PHOTOS[name]) return name;
   if (!fuzzy) return '';
   const words = norm(name).split(' '), surname = words[words.length - 1];
   const exact = photoKeys.find(([, w]) => w.join(' ') === words.join(' '));
-  if (exact) return PHOTOS[exact[0]];
-  const hits = photoKeys.filter(([, w]) => w[w.length - 1] === surname && w[0][0] === words[0][0]);
-  return hits.length === 1 ? PHOTOS[hits[0][0]] : '';
+  if (exact) return exact[0];
+  const hits = photoKeys.filter(([k, w]) => w[w.length - 1] === surname && w[0][0] === words[0][0]
+    && (!roleOf.has(norm(k)) || compatible(roleOf.get(norm(k)), role)));
+  return hits.length === 1 ? hits[0][0] : '';
 }
-const withPhoto = (p, fuzzy) => ({ ...p, img: photoFor(p.name, fuzzy) });
+const withPhoto = (p, fuzzy) => {
+  const key = photoName(p.name, p.role, fuzzy);
+  return { ...p, img: key ? localPhoto(key) : '' };
+};
 
 // One catalogue of every player the client may need to show, keyed by id.
 // Football photos only match exact names, so a cricketer's photo never lands on a footballer.
+// IPL career stats: the legends lists carry stats for many current players, so share them by name
+// (full names first, then the legends list's short names by surname + initial + compatible role).
+const hasCareer = s => s && (s.runs != null || s.wkts != null);
+const statsByName = new Map(UPGRADED.filter(p => hasCareer(p.stats)).map(p => [norm(p.name), p.stats]));
+const legendStats = LEGENDS.filter(p => hasCareer(p.stats)).map(p => [norm(p.name).split(' '), p]);
+function careerStats(p) {
+  if (hasCareer(p.stats)) return p.stats;
+  const s = statsByName.get(norm(p.name));
+  if (s) return s;
+  const w = norm(p.name).split(' ');
+  const hits = legendStats.filter(([lw, l]) => lw[lw.length - 1] === w[w.length - 1] && lw[0][0] === w[0][0] && compatible(l.role, p.role));
+  return hits.length === 1 ? hits[0][1].stats : p.stats;
+}
+// Pace or spin, shared by name across lists the same way.
+const typeByName = new Map();
+[...MEGA, ...MOCK_POOL, ...UPGRADED].forEach(p => p.bowlType && typeByName.set(norm(p.name), p.bowlType));
+const bowlTypeFor = p => p.bowlType || typeByName.get(norm(p.name)) || null;
+
 const PLAYERS = [
-  ...[...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(p => withPhoto({ ...p, sport: 'cricket' }, true)),
+  ...[...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(p => withPhoto({ ...p, sport: 'cricket', stats: careerStats(p), bowlType: bowlTypeFor(p) }, true)),
   ...FOOTBALL.map(p => withPhoto({ ...p, sport: 'football' }, false))
 ];
 const byId = new Map(PLAYERS.map(p => [p.id, p]));
-const fromCatalog = list => list.map(p => ({ ...byId.get(p.id), ...p, img: byId.get(p.id).img }));
+// Pool entries keep their own set/price details but take photo, stats and pace/spin from the catalogue.
+const fromCatalog = list => list.map(p => {
+  const c = byId.get(p.id);
+  return { ...c, ...p, img: c.img, stats: c.stats, bowlType: p.bowlType || c.bowlType, sport: c.sport };
+});
 for (const t of Object.values(RETENTIONS)) t.players = fromCatalog(t.players);
 
 // ---------- sports ----------
