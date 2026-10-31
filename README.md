@@ -51,10 +51,20 @@ After the auction, once every team has announced a full XI, the host clicks **Ra
 
 - **Cricket:** top order (1–3), middle and finishing (4–7), bowling attack (best 5 bowling options), all-round depth,
   IPL experience (matches) and team balance (wicket-keeper, 5+ bowling options, 6+ batters, pace and spin, Impact Player).
-  Ratings use IPL career stats (runs, strike rate, wickets, economy) from the player lists; players without stats are
-  estimated from their base price.
+  Each player is rated on their **last five IPL seasons** (runs, strike rate, average, wickets, economy, matches), built
+  from Cricsheet's free ball-by-ball data (cricsheet.org) into `data/ipl_form.json`. Players without recent IPL games use
+  their career stats from the player lists, or an estimate from their base price. The rankings page compares every
+  aspect side by side, lists the best batters and bowlers across all XIs, and shows each player's numbers.
 - **Football:** goalkeeper, defence, midfield, attack, overall quality (ratings) and balance (one keeper, a sensible formation,
   centre-backs and full-backs).
 
 The weighted total gives the ranking; the page compares every aspect side by side and lists each team's strengths, weaknesses
 and balance issues. If an XI changes afterwards, the host can rank again.
+
+To refresh the season data after a new IPL season: download `ipl_json.zip`, `people.csv` and `names.csv` from
+cricsheet.org, unzip the matches into a folder, list the game's cricketers as `Name|ROLE|current` lines in a text file,
+and run `python tools/build_form.py <matches folder> people.csv names.csv <players.txt> data/ipl_form.json`.
+
+## Host controls
+The host can remove a player from the room (Remove, next to their name). During the auction their team is freed and
+the players they bought go back into the auction; after the auction their results stay but they can't rejoin.

@@ -99,7 +99,7 @@ function publicState(room) {
   room.members.forEach(m => { if (m.teamId) owners[m.teamId] = m.name; });
   return {
     code: room.code, hostId: room.hostId, phase: room.phase, sport: room.sport, mode: room.mode, rules: rulesFor(room),
-    members: [...room.members.values()].map(({ id, name, teamId, online }) => ({ id, name, teamId, online })),
+    members: [...room.members.values()].map(({ id, name, teamId, online, kicked }) => ({ id, name, teamId, online, ...(kicked ? { kicked } : {}) })),
     teams: teamsOf(room).map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id], rtmLeft: room.rtmLeft[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
     status: room.status, result: room.result, paused: room.paused, rtm: room.rtm, ranking: room.ranking,
@@ -371,7 +371,7 @@ io.on('connection', socket => {
 
   socket.on('rejoin', ({ code, memberId } = {}, cb) => {
     const r = rooms.get(code); const m = r?.members.get(memberId);
-    if (!m) return cb?.({ ok: false });
+    if (!m || m.kicked) return cb?.({ ok: false });
     enter(r, m, cb);
   });
 
@@ -505,7 +505,9 @@ io.on('connection', socket => {
   socket.on('rankTeams', (_, cb) => {
     const r = room(); if (!r || !isHost()) return cb?.({ ok: false, error: 'Only the host can rank the teams.' });
     if (r.phase !== 'finished') return cb?.({ ok: false, error: 'Rank the teams after the auction ends.' });
-    const owned = new Set([...r.members.values()].map(m => m.teamId).filter(Boolean));
+    // Teams of players the host removed after the auction only count if they had already announced a full XI.
+    const full = id => r.xi[id].xi.length >= RULES.xiSize;
+    const owned = new Set([...r.members.values()].filter(m => m.teamId && (!m.kicked || full(m.teamId))).map(m => m.teamId));
     const teams = teamsOf(r).filter(t => owned.has(t.id));
     const pending = teams.filter(t => r.xi[t.id].xi.length < RULES.xiSize).map(t => t.id);
     if (!teams.length) return cb?.({ ok: false, error: 'No teams to rank.' });
@@ -533,6 +535,22 @@ io.on('connection', socket => {
     const r = room(); if (!r || !isHost() || r.phase !== 'auction') return;
     if (r.status === 'rtm') sell(r, r.rtm.winner, r.rtm.price);
     clearTimeout(r.nextTimer); finish(r);
+  });
+
+  // The host removes someone from the room. Mid-auction their team is freed and its players return to the auction.
+  socket.on('kick', ({ memberId } = {}, cb) => {
+    const r = room(); if (!r || !isHost()) return cb?.({ ok: false, error: 'Only the host can remove players.' });
+    const target = r.members.get(memberId);
+    if (!target) return cb?.({ ok: false, error: 'That player has already left.' });
+    if (target.id === r.hostId) return cb?.({ ok: false, error: 'You can’t remove yourself. Use Leave instead.' });
+    addLog(r, `Host removed ${target.name} from the room`, 'host');
+    if (r.phase === 'auction' && target.teamId) releaseTeam(r, target.teamId, target.name);
+    // After the auction the record stays so results keep the owner's name; they just can't rejoin.
+    if (r.phase === 'finished') { target.online = false; target.kicked = true; } else r.members.delete(target.id);
+    const s = target.socketId && io.sockets.sockets.get(target.socketId);
+    if (s) { s.emit('kicked'); s.leave(r.code); s.data = {}; }
+    broadcast(r);
+    cb?.({ ok: true });
   });
 
   socket.on('leave', () => {

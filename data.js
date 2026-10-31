@@ -99,15 +99,31 @@ const typeByName = new Map();
 [...MEGA, ...MOCK_POOL, ...UPGRADED].forEach(p => p.bowlType && typeByName.set(norm(p.name), p.bowlType));
 const bowlTypeFor = p => p.bowlType || typeByName.get(norm(p.name)) || null;
 
+// Recent form: each player's last five IPL seasons, built from Cricsheet ball-by-ball data by
+// tools/build_form.py into data/ipl_form.json. Summed here into one line per player.
+let FORM = {};
+try { FORM = require('./data/ipl_form.json'); } catch {}
+function recentForm(name) {
+  const seasons = FORM[name];
+  if (!seasons?.length) return null;
+  const sum = k => seasons.reduce((s, x) => s + x[k], 0);
+  const years = seasons.map(x => x.y);
+  return {
+    from: Math.min(...years), to: Math.max(...years), n: seasons.length,
+    m: sum('m'), inns: sum('inns'), runs: sum('runs'), balls: sum('balls'), outs: sum('outs'), f: sum('f'), s: sum('s'),
+    bb: sum('bb'), rc: sum('rc'), w: sum('w')
+  };
+}
+
 const PLAYERS = [
-  ...[...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(p => withPhoto({ ...p, sport: 'cricket', stats: careerStats(p), bowlType: bowlTypeFor(p) }, true)),
+  ...[...MEGA, ...EXTRA, ...LEGENDS, ...UPGRADED].map(p => withPhoto({ ...p, sport: 'cricket', stats: careerStats(p), bowlType: bowlTypeFor(p), form: recentForm(p.name) }, true)),
   ...FOOTBALL.map(p => withPhoto({ ...p, sport: 'football' }, false))
 ];
 const byId = new Map(PLAYERS.map(p => [p.id, p]));
 // Pool entries keep their own set/price details but take photo, stats and pace/spin from the catalogue.
 const fromCatalog = list => list.map(p => {
   const c = byId.get(p.id);
-  return { ...c, ...p, img: c.img, stats: c.stats, bowlType: p.bowlType || c.bowlType, sport: c.sport };
+  return { ...c, ...p, img: c.img, stats: c.stats, form: c.form, bowlType: p.bowlType || c.bowlType, sport: c.sport };
 });
 for (const t of Object.values(RETENTIONS)) t.players = fromCatalog(t.players);
 

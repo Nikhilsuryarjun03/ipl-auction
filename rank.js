@@ -1,6 +1,7 @@
 // Team rankings after the auction, from each team's Playing XI (cricket) or Starting XI (football).
-// Every aspect is scored 0–100, then weighted into an overall score. Cricket ratings come from IPL career
-// stats in the player lists; players without stats get an estimate from their base price and role.
+// Every aspect is scored 0–100, then weighted into an overall score. Cricketers are rated on their last five
+// IPL seasons (p.form, from Cricsheet ball-by-ball data); without enough recent games, on their IPL career stats
+// from the player lists; failing that, on an estimate from base price and role.
 
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const scale = (x, lo, hi) => clamp01((x - lo) / (hi - lo)); // 0 at lo, 1 at hi
@@ -40,8 +41,16 @@ const bowlTypeOf = p => p.bowlType || (isSpinner(p) ? 'spin' : p.role === 'BOWL'
 // Players without career stats: estimate from base price (₹30 L ≈ 32, ₹2 cr+ ≈ 62).
 const estimate = base => 30 + 32 * scale(base, 20, 200);
 
+// Enough recent games to judge: 30 balls faced / 60 balls bowled across the last five seasons.
+const recentBat = p => p.form && p.form.balls >= 30;
+const recentBowl = p => p.form && p.form.bb >= 60;
+
 function batRating(p) {
-  const s = p.stats;
+  const f = p.form, s = p.stats;
+  if (recentBat(p)) {
+    const sr = (f.runs / f.balls) * 100, perInns = f.runs / Math.max(f.inns, 1), avg = f.runs / Math.max(f.outs, 1);
+    return 100 * (0.40 * scale(sr, 115, 170) + 0.30 * scale(perInns, 8, 40) + 0.15 * scale(avg, 15, 45) + 0.15 * scale(f.runs, 0, 2500));
+  }
   if (s && s.runs != null && s.m) {
     return 100 * (0.40 * scale(s.sr ?? 120, 110, 165) + 0.35 * scale(s.runs / s.m, 8, 36) + 0.25 * scale(s.runs, 0, 5000));
   }
@@ -49,13 +58,35 @@ function batRating(p) {
   return p.role === 'AR' ? estimate(p.base) * 0.85 : estimate(p.base);
 }
 function bowlRating(p) {
-  const s = p.stats;
+  const f = p.form, s = p.stats;
+  if (recentBowl(p)) {
+    const econ = (f.rc / f.bb) * 6, perMatch = f.w / Math.max(f.m, 1), strike = f.bb / Math.max(f.w, 1);
+    return 100 * (0.40 * scale(10 - econ, 0, 3) + 0.30 * scale(perMatch, 0.4, 1.6) + 0.15 * scale(30 - strike, 0, 16) + 0.15 * scale(f.w, 0, 80));
+  }
   if (s && s.wkts != null && s.m) {
     return 100 * (0.40 * scale(9.6 - (s.econ ?? 8.5), 0, 2.8) + 0.35 * scale(s.wkts / s.m, 0.5, 1.5) + 0.25 * scale(s.wkts, 0, 180));
   }
   if (p.role === 'BOWL') return estimate(p.base);
   if (p.role === 'AR') return estimate(p.base) * 0.8;
   return 0;
+}
+
+// One line per player for the comparison table: what the rating was based on and the headline numbers.
+function playerLine(p, inXI) {
+  const f = p.form, s = p.stats;
+  const basis = recentBat(p) || recentBowl(p) ? 'form' : s && (s.runs != null || s.wkts != null) ? 'career' : 'estimate';
+  const line = { name: p.name, role: p.role, impact: !inXI, basis, bat: Math.round(batRating(p)), bowl: Math.round(bowlRating(p)) };
+  if (basis === 'form') {
+    Object.assign(line, {
+      span: f.from === f.to ? `${f.to}` : `${f.from}–${String(f.to).slice(2)}`, seasons: f.n, m: f.m, runs: f.runs,
+      sr: f.balls ? +((f.runs / f.balls) * 100).toFixed(1) : null, avg: f.outs ? +(f.runs / f.outs).toFixed(1) : null,
+      // bowling numbers only for players who bowled at least four overs
+      w: f.bb >= 24 ? f.w : null, econ: f.bb >= 24 ? +((f.rc / f.bb) * 6).toFixed(2) : null
+    });
+  } else if (basis === 'career') {
+    Object.assign(line, { span: 'career', m: s.m, runs: s.runs ?? null, sr: s.sr ?? null, avg: null, w: s.wkts ?? null, econ: s.econ ?? null });
+  }
+  return line;
 }
 
 function cricketTeam(team) {
@@ -68,7 +99,8 @@ function cricketTeam(team) {
   const batters = all.filter(p => batRating(p) >= 35);
   const types = bowlers.map(b => bowlTypeOf(b.p));
   const pace = types.filter(t => t === 'pace').length, spin = types.filter(t => t === 'spin').length;
-  const matches = xi.reduce((s, p) => s + (p.stats?.m || 0), 0);
+  // matches over the last five seasons (career matches when a player has no recent IPL data)
+  const matches = xi.reduce((s, p) => s + (p.form?.m || p.stats?.m || 0), 0);
 
   const issues = [];
   let balance = 100;
@@ -85,13 +117,15 @@ function cricketTeam(team) {
     { key: 'middle', label: 'Middle & finishing (4–7)', score: avgOf(bat.slice(3, 7), 4) },
     { key: 'bowling', label: 'Bowling attack', score: avgOf(bowlers.map(b => b.r), 5) },
     { key: 'depth', label: 'All-round depth', score: 100 * (0.5 * scale(bowlers.length, 4, 7) + 0.5 * scale(batters.length, 5, 8)) },
-    { key: 'experience', label: 'IPL experience', score: 100 * scale(matches, 200, 1400) },
+    { key: 'experience', label: 'Recent IPL experience', score: 100 * scale(matches, 150, 600) },
     { key: 'balance', label: 'Team balance', score: Math.max(0, balance) }
   ];
   const weights = { top: 0.20, middle: 0.18, bowling: 0.27, depth: 0.10, experience: 0.08, balance: 0.17 };
   const key = all.map(p => ({ p, r: Math.max(batRating(p), bowlRating(p)) })).sort((a, b) => b.r - a.r).slice(0, 3).map(x => x.p.name);
-  const summary = `${bowlers.length} bowling options (${pace} pace, ${spin} spin) · ${batters.length} batters · ${matches} IPL matches`;
-  return finish(team, aspects, weights, issues, key, summary);
+  const summary = `${bowlers.length} bowling options (${pace} pace, ${spin} spin) · ${batters.length} batters · ${matches} IPL matches in the last 5 seasons`;
+  const result = finish(team, aspects, weights, issues, key, summary);
+  result.players = all.map(p => playerLine(p, p !== impact));
+  return result;
 }
 
 // ---------- football ----------

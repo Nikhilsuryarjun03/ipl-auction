@@ -168,6 +168,13 @@ socket.on('tick', t => {
   updateClock();
 });
 socket.on('toast', toast);
+// The host removed this player: back to the home screen.
+socket.on('kicked', () => {
+  save(null); state = null; view = 'board'; draft = null;
+  history.replaceState(null, '', '/');
+  render(true);
+  toast('The host removed you from the room.');
+});
 
 function toast(msg) {
   const el = document.getElementById('toast');
@@ -380,13 +387,7 @@ function lobbyView() {
         </section>
         <section class="card">
           <div class="card-head"><h2>Players</h2><span class="muted small">${state.members.length}/${r.maxMembers}</span></div>
-          <ul class="people">
-            ${state.members.map(m => {
-              const t = m.teamId && team(m.teamId);
-              return `<li><span class="dot ${m.online ? '' : 'off'}"></span><span class="who">${esc(m.name)}${m.id === state.hostId ? '<span class="tag">Host</span>' : ''}</span>
-                ${t ? `<span class="team-mini">${badge(t, 'xs')}${esc(t.id)}</span>` : '<span class="muted small">No team</span>'}</li>`;
-            }).join('')}
-          </ul>
+          ${peopleList()}
         </section>
         <section class="card">
           <div class="card-head"><h2>Auction rules</h2></div>
@@ -429,6 +430,27 @@ function teamPicker(mine) {
     <h3 class="league-name">${esc(l)}</h3>
     <section class="team-grid compact">${state.teams.filter(t => t.league === l).map(card).join('')}</section>
   </div>`).join('');
+}
+
+// Everyone in the room; the host gets a Remove button next to each other player.
+function peopleList() {
+  return `<ul class="people">
+    ${state.members.map(m => {
+      const t = m.teamId && team(m.teamId);
+      const canKick = isHost() && m.id !== session?.memberId && !m.kicked;
+      return `<li class="${m.kicked ? 'kicked' : ''}"><span class="dot ${m.online ? '' : 'off'}"></span>
+        <span class="who">${esc(m.name)}${m.id === state.hostId ? '<span class="tag">Host</span>' : ''}${m.kicked ? '<span class="tag out">Removed</span>' : ''}</span>
+        ${t ? `<span class="team-mini">${badge(t, 'xs')}${esc(t.id)}</span>` : '<span class="muted small">No team</span>'}
+        ${canKick ? `<button class="kick" data-act="kick" data-id="${esc(m.id)}" data-name="${esc(m.name)}" title="Remove ${esc(m.name)}" aria-label="Remove ${esc(m.name)}">Remove</button>` : ''}</li>`;
+    }).join('')}
+  </ul>`;
+}
+
+function peopleCard() {
+  return `<section class="card">
+    <div class="card-head"><h2>Players</h2><span class="muted small">${state.members.filter(m => !m.kicked).length}/${state.rules.maxMembers}</span></div>
+    ${peopleList()}
+  </section>`;
 }
 
 function modePicker() {
@@ -630,6 +652,7 @@ function auctionView() {
 
       <aside class="side">
         ${teamsCard()}
+        ${peopleCard()}
         ${activityCard()}
       </aside>
     </div>
@@ -919,8 +942,10 @@ function squadsPage(final) {
 // Shown after the auction: who still has to announce an XI, and the host's "Rank teams" button.
 function rankBar() {
   if (state.phase !== 'finished') return '';
+  // removed players' teams don't hold the ranking up
+  const removed = id => state.members.find(m => m.teamId === id)?.kicked;
   const owned = state.teams.filter(t => t.owner);
-  const pending = owned.filter(t => t.xi.xi.length < state.rules.xiSize);
+  const pending = owned.filter(t => t.xi.xi.length < state.rules.xiSize && !removed(t.id));
   const r = state.ranking;
   let text, action = '';
   if (pending.length) {
@@ -939,6 +964,40 @@ function rankBar() {
 
 const tone = score => (score >= 70 ? 'good' : score >= 45 ? 'mid' : 'low');
 
+// Each player's numbers behind the ranking: last five IPL seasons where available.
+const BASIS = { form: 'Last 5 seasons', career: 'IPL career', estimate: 'Estimated (no IPL data)' };
+const num = v => (v == null ? '–' : v);
+function formTable(players) {
+  return `<details class="form-details">
+    <summary>Player-by-player numbers</summary>
+    <div class="compare-scroll"><table class="lb form-table">
+      <thead><tr><th>Player</th><th>Seasons</th><th>M</th><th>Runs</th><th>SR</th><th>Wkts</th><th>Econ</th><th>Bat</th><th>Bowl</th></tr></thead>
+      <tbody>${players.map(p => `<tr class="${p.basis}">
+        <td class="fp-name">${esc(p.name)}${p.impact ? ' <span class="tag rt">Impact</span>' : ''}<span class="r-sub">${ROLE[p.role]} · ${BASIS[p.basis]}</span></td>
+        <td>${p.span ? esc(p.span) : '–'}</td><td>${num(p.m)}</td><td>${num(p.runs)}</td><td>${num(p.sr)}</td>
+        <td>${num(p.w)}</td><td>${num(p.econ)}</td>
+        <td><b class="${tone(p.bat)}-text">${p.bat || '–'}</b></td><td><b class="${tone(p.bowl)}-text">${p.bowl || '–'}</b></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </details>`;
+}
+
+// The best batters and bowlers across every XI, side by side.
+function bestPerformers(results) {
+  const all = results.flatMap(r => r.players.map(p => ({ ...p, teamId: r.teamId })));
+  const list = (key, label, stat) => `<div class="bp-col"><h3>${label}</h3><ol>
+    ${all.filter(p => p[key] > 0).sort((a, b) => b[key] - a[key]).slice(0, 5).map(p => {
+      const t = team(p.teamId);
+      return `<li>${badge(t, 'xs')}<span class="r-name">${esc(p.name)}<span class="r-sub">${stat(p)}</span></span><b>${p[key]}</b></li>`;
+    }).join('')}</ol></div>`;
+  const batStat = p => (p.basis === 'estimate' ? 'estimated' : `${num(p.runs)} runs · SR ${num(p.sr)} · ${p.span}`);
+  const bowlStat = p => (p.basis === 'estimate' ? 'estimated' : `${num(p.w)} wkts · econ ${num(p.econ)} · ${p.span}`);
+  return `<section class="card best-perf">
+    <div class="card-head"><h2>Best performers</h2><span class="muted small">Rated on their last 5 IPL seasons</span></div>
+    <div class="bp-grid">${list('bat', 'Batters', batStat)}${list('bowl', 'Bowlers', bowlStat)}</div>
+  </section>`;
+}
+
 function rankingPage() {
   const { results, stale } = state.ranking;
   const aspects = results[0].aspects.map(a => a.key);
@@ -949,7 +1008,7 @@ function rankingPage() {
     <div class="page-head"><div><h1>Team rankings</h1>
       <p class="muted">Every ${XI()} scored 0–100 on each aspect, then combined. ${isFootball()
         ? 'Based on player ratings, positions and formation.'
-        : 'Based on IPL career stats (runs, strike rate, wickets, economy, matches); players without stats are estimated from their base price.'}</p></div></div>
+        : 'Each player is rated on their last five IPL seasons (runs, strike rate, average, wickets, economy) from Cricsheet ball-by-ball data. Players without recent IPL games use their career stats, or an estimate from their base price.'}</p></div></div>
     ${stale ? `<div class="banner paused">Some ${XI()}s changed after this ranking. ${isHost() ? '<button class="link accent" data-act="rank">Rank again</button>' : 'The host can rank again.'}</div>` : ''}
     ${subNav()}
     <section class="card compare">
@@ -967,6 +1026,7 @@ function rankingPage() {
         }).join('')}</tbody>
       </table></div>
     </section>
+    ${state.ranking.results[0].players ? bestPerformers(results) : ''}
     <div class="rank-list">
       ${results.map(r => {
         const t = team(r.teamId);
@@ -990,6 +1050,7 @@ function rankingPage() {
             ${!r.issues.length ? '<span class="note good">Well balanced</span>' : ''}
           </div>
           <p class="muted small">Key players: ${r.key.map(esc).join(', ')}</p>
+          ${r.players ? formTable(r.players) : ''}
         </section>`;
       }).join('')}
     </div>
@@ -1173,6 +1234,12 @@ app.addEventListener('click', e => {
   else if (act === 'rank') socket.emit('rankTeams', null, res => res?.ok || toast(res?.error || 'Could not rank the teams.'));
   else if (['squads', 'board', 'xi', 'xi-edit', 'summary', 'ranking'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
   else if (act === 'mode') socket.emit('setMode', { mode: el.dataset.mode });
+  else if (act === 'kick') {
+    const note = state.phase === 'auction' ? ' Their players go back into the auction and their team becomes free.' : '';
+    if (confirm(`Remove ${el.dataset.name} from the room?${note}`)) {
+      socket.emit('kick', { memberId: el.dataset.id }, res => res?.ok ? toast(`${el.dataset.name} was removed.`) : toast(res?.error || 'Could not remove that player.'));
+    }
+  }
   else if (act === 'rtm') socket.emit('rtm', { action: el.dataset.a, amount: el.dataset.amt ? Number(el.dataset.amt) : undefined });
   else if (act === 'rtmcards') socket.emit('setRtm', { cards: Number(el.dataset.n) });
   else if (act === 'purses') openPurseEditor();

@@ -603,6 +603,34 @@ input.code { text-transform: uppercase; letter-spacing: .3em; font-weight: 700; 
   .rank-list { grid-template-columns: 1fr; }
 }
 
+/* removing players */
+.people .kick {
+  margin-left: 6px; height: 24px; padding: 0 8px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 700;
+  border: 1px solid rgba(240,68,82,.4); background: transparent; color: #FF8A94;
+}
+.people .kick:hover { background: rgba(240,68,82,.12); }
+.people li.kicked { opacity: .5; }
+.people .tag.out { background: rgba(240,68,82,.14); color: #FF8A94; }
+
+/* rankings: player numbers */
+.form-details { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+.form-details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); }
+.form-table { margin-top: 8px; font-size: 12px; }
+.form-table th, .form-table td { padding: 6px 6px; text-align: right; }
+.form-table th:first-child, .form-table td:first-child { text-align: left; }
+.fp-name { display: grid; font-weight: 600; white-space: normal; min-width: 104px; }
+.form-table th, .form-table td { padding: 6px 4px; }
+.form-table .r-sub { font-size: 10px; }
+.form-table tr.estimate td { color: var(--faint); }
+.good-text { color: var(--ok); } .mid-text { color: var(--accent); } .low-text { color: #FF8A94; }
+.best-perf { margin-bottom: 16px; }
+.bp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 16px 14px; }
+.bp-col h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin-bottom: 6px; }
+.bp-col ol { list-style: none; margin: 0; padding: 0; }
+.bp-col li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); }
+.bp-col li b { color: var(--accent); }
+@media (max-width: 600px) { .bp-grid { grid-template-columns: 1fr; } }
+
 /* ---------- toast & confetti ---------- */
 #toast {
   position: fixed; left: 50%; bottom: 24px; z-index: 70; transform: translate(-50%, 150%); max-width: 90vw;
