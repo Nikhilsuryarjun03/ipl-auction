@@ -33,6 +33,27 @@ p { margin: 0; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
 /* ---------- background ---------- */
+/* IPL artwork behind cricket screens: clear on the home screen, dimmed and softened inside a room. */
+.bg-photo {
+  position: absolute; inset: 0; opacity: 0; transition: opacity .6s ease, filter .6s ease;
+  background: url(/img/ipl-bg.jpg) center 58% / cover no-repeat;
+}
+.bg-photo::after { /* keep text readable: darker towards the bottom and on the left where the heading sits */
+  content: ''; position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, rgba(10,15,30,.9) 0%, rgba(10,15,30,.74) 32%, rgba(10,15,30,.22) 60%, rgba(10,15,30,.4) 100%),
+    linear-gradient(180deg, rgba(10,15,30,.2) 0%, rgba(10,15,30,.35) 50%, rgba(10,15,30,.95) 100%);
+}
+body[data-sport="cricket"] .bg-photo { opacity: .9; }
+body[data-sport="cricket"][data-page="room"] .bg-photo { opacity: .38; filter: blur(3px) saturate(1.15); }
+body[data-sport="cricket"][data-page="room"] .bg-photo::after { background: linear-gradient(180deg, rgba(10,15,30,.55), rgba(10,15,30,.85)); }
+body[data-sport="cricket"] .glow { opacity: .1; }
+body[data-sport="cricket"] .home .intro { text-shadow: 0 2px 14px rgba(0,0,0,.65); }
+body[data-sport="cricket"] .home .lede { color: #CBD3EA; }
+@media (max-width: 960px) {
+  .bg-photo { background-image: url(/img/ipl-bg-small.jpg); background-position: center 45%; }
+  .bg-photo::after { background: linear-gradient(180deg, rgba(10,15,30,.66) 0%, rgba(10,15,30,.8) 40%, rgba(10,15,30,.96) 100%); }
+}
 .backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .glow { position: absolute; width: 60vw; height: 60vw; border-radius: 50%; filter: blur(90px); opacity: .22; }
 .glow.a { top: -30vw; left: -15vw; background: #2D4BB8; animation: drift 28s ease-in-out infinite alternate; }

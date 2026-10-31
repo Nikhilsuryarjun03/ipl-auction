@@ -185,7 +185,14 @@ function toast(msg) {
 // ---------- render ----------
 // Full re-render only when something other than the clock changes,
 // so buttons are not replaced under the pointer every second.
+// The page background follows the sport (IPL artwork for cricket) and dims inside a room.
+function setBackdrop() {
+  document.body.dataset.sport = sportNow();
+  document.body.dataset.page = state ? 'room' : 'home';
+}
+
 function render(force) {
+  setBackdrop();
   if (!state) { lastKey = ''; return homeView(); }
   const { timeLeft, ...rest } = state;
   const key = JSON.stringify(rest) + view;
@@ -333,6 +340,7 @@ function homeView() {
     homeSport = b.dataset.sport;
     app.querySelectorAll('[data-sport]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
     app.querySelector('.logo-row').innerHTML = homeLogos();
+    setBackdrop();
     app.querySelector('.topbar.plain .topbar-in').innerHTML = brandHtml();
   });
   createForm.onsubmit = e => {
