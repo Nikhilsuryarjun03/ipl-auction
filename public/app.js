@@ -15,6 +15,7 @@ let boardTab = 'upcoming'; // upcoming | sold | unsold | leaders
 let showAllUpcoming = false;
 let feedFilter = 'all';   // all | chat
 const openTeams = new Set(); // teams expanded in the Teams panel
+let tradeDraft = null;     // offer being built: { to, give: [ids], get: [ids], giveCash, getCash }
 let lastSold = '';
 let lastBid = null;
 
@@ -148,6 +149,9 @@ socket.on('meta', m => {
 socket.on('state', s => {
   const prev = state; state = s;
   playSounds(prev, s); celebrate();
+  const mine = me()?.teamId, seen = new Set((prev?.trades || []).map(t => t.id));
+  const incoming = (s.trades || []).filter(t => t.to === mine && t.status === 'pending' && !seen.has(t.id));
+  if (prev && incoming.length) { sfx.beep(); toast(`${incoming[0].from} sent you a trade offer. Open Trades to answer.`); }
   if (s.ranking && s.ranking.at !== prev?.ranking?.at) {
     view = 'ranking'; draft = null;
     const top = team(s.ranking.results[0].teamId);
@@ -211,7 +215,8 @@ function snapshotUI() {
   return {
     chat: ci?.value || '', focus: ci && document.activeElement === ci, sel: ci?.selectionStart ?? 0,
     feedTop: feed?.scrollTop ?? 0, feedAtBottom: !feed || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40,
-    boardTop: board?.scrollTop ?? 0
+    boardTop: board?.scrollTop ?? 0,
+    cashFocus: document.activeElement?.dataset?.cash || null
   };
 }
 function restoreUI(ui) {
@@ -224,6 +229,7 @@ function restoreUI(ui) {
   if (feed) feed.scrollTop = ui.feedAtBottom ? feed.scrollHeight : ui.feedTop;
   const board = document.getElementById('boardBody');
   if (board) board.scrollTop = ui.boardTop;
+  if (ui.cashFocus) document.querySelector(`[data-cash="${ui.cashFocus}"]`)?.focus({ preventScroll: true });
 }
 
 const brandHtml = () => `<div class="brand"><span class="brand-mark ${isFootball() ? 'ball' : ''}" aria-hidden="true"></span><span>Auction Room</span><span class="brand-tag">${isFootball() ? 'Football' : 'IPL'}</span></div>`;
@@ -776,7 +782,7 @@ function squadGroups(t) {
     const ps = t.squad.filter(p => p.role === role).sort((a, b) => b.price - a.price);
     return `<div class="sg">
       <div class="sg-head"><span>${label}</span><span>${ps.length}</span></div>
-      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}${p.retained ? '<span class="os-mark rt" title="Retained">R</span>' : ''}${p.rtm ? '<span class="os-mark rtm" title="Bought using Right to Match">RTM</span>' : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
+      ${ps.length ? ps.map(p => `<div class="sg-row"><span>${esc(p.name)}${p.overseas ? '<span class="os-mark" title="Overseas">OS</span>' : ''}${p.retained ? '<span class="os-mark rt" title="Retained">R</span>' : ''}${p.rtm ? '<span class="os-mark rtm" title="Bought using Right to Match">RTM</span>' : ''}${p.tradedFrom ? `<span class="os-mark tr" title="Traded from ${esc(p.tradedFrom)}">⇄ ${esc(p.tradedFrom)}</span>` : ''}</span><b>${fmt(p.price)}</b></div>`).join('')
         : '<div class="sg-row none">None yet</div>'}
     </div>`;
   }).join('');
@@ -896,7 +902,7 @@ function subNav() {
   const tab = (v, label) => `<button class="${cur === v ? 'on' : ''}" data-act="${v}">${label}</button>`;
   return `<nav class="subnav">
     ${state.phase === 'auction' ? `<button class="btn sm" data-act="board">${ICON.back}Back to auction</button>` : ''}
-    <div class="seg">${tab('squads', 'Squads')}${tab('xi', `${XI()}s`)}${tab('summary', 'Summary')}${state.ranking ? tab('ranking', 'Rankings') : ''}</div>
+    <div class="seg">${tab('squads', 'Squads')}${tab('xi', `${XI()}s`)}${tab('summary', 'Summary')}${state.phase === 'finished' ? tab('trades', `Trades${pendingForMe() ? ` (${pendingForMe()})` : ''}`) : ''}${state.ranking ? tab('ranking', 'Rankings') : ''}</div>
   </nav>`;
 }
 
@@ -938,7 +944,7 @@ function squadsPage(final) {
             <div><dt>Left</dt><dd>${fmt(t.purse)}</dd></div>
           </dl>
           ${t.squad.length ? `<ul class="roster">${t.squad.slice().sort((a, b) => b.price - a.price).map(p =>
-            `<li>${playerLine(p)}${p.retained ? '<span class="tag rt">Retained</span>' : ''}<b class="price">${fmt(p.price)}</b></li>`).join('')}</ul>`
+            `<li>${playerLine(p)}${p.retained ? '<span class="tag rt">Retained</span>' : ''}${p.tradedFrom ? `<span class="tag tr">From ${esc(p.tradedFrom)}</span>` : ''}<b class="price">${fmt(p.price)}</b></li>`).join('')}</ul>`
             : '<p class="empty">No players bought yet.</p>'}
         </section>`).join('')}
     </div>
@@ -1065,11 +1071,95 @@ function rankingPage() {
   </main>`;
 }
 
+// ---------- trades (after the auction) ----------
+const pendingForMe = () => (state.trades || []).filter(t => t.status === 'pending' && t.to === me()?.teamId).length;
+const TRADE_STATUS = { pending: 'Waiting', accepted: 'Done', rejected: 'Rejected', cancelled: 'Withdrawn', expired: 'Expired' };
+
+function tradePicker(teamObj, side, picked) {
+  const sorted = teamObj.squad.slice().sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || b.price - a.price);
+  return `<ul class="roster trade-pick">${sorted.map(p => {
+    const on = picked.includes(p.id);
+    return `<li class="${on ? 'picked' : ''}"><button class="tp-btn" data-act="trade-pick" data-side="${side}" data-id="${p.id}" aria-pressed="${on}">
+      ${playerLine(p)}<b class="price">${fmt(p.price)}</b><span class="tp-check" aria-hidden="true">${on ? '✓' : '+'}</span></button></li>`;
+  }).join('') || '<li class="empty">No players.</li>'}</ul>`;
+}
+
+// "You give X + ₹1.5 cr for Y": updated as players are tapped and cash is typed.
+function tradeSummary() {
+  const mine = team(me()?.teamId), them = team(tradeDraft.to);
+  const f = isFootball() ? 1 : 100;
+  const side = (tm, ids, cash) => {
+    const names = ids.map(id => tm.squad.find(p => p.id === id)?.name).filter(Boolean);
+    if (+cash > 0) names.push(fmt(Math.round(+cash * f)));
+    return esc(names.join(' + ') || 'nothing');
+  };
+  if (!tradeDraft.give.length && !tradeDraft.get.length) return 'Tap players on either side to build an offer.';
+  return `You give <b>${side(mine, tradeDraft.give, tradeDraft.giveCash)}</b> and get <b>${side(them, tradeDraft.get, tradeDraft.getCash)}</b>`;
+}
+
+function tradeBuilder(mine) {
+  const others = state.teams.filter(t => t.owner && t.id !== mine.id && !state.members.find(m => m.teamId === t.id)?.kicked);
+  if (!others.length) return '<p class="empty">No other teams to trade with.</p>';
+  if (!tradeDraft || !others.some(t => t.id === tradeDraft.to)) {
+    return `<div class="pad"><p class="muted small">Pick a team to trade with:</p>
+      <div class="join-teams">${others.map(t => `<button class="join-team" data-act="trade-to" data-team="${t.id}">${badge(t, 'sm')}<span>${esc(t.id)} · ${esc(t.owner)}</span></button>`).join('')}</div></div>`;
+  }
+  const them = team(tradeDraft.to), unit = isFootball() ? '€M' : 'cr';
+  const ready = tradeDraft.give.length || tradeDraft.get.length;
+  return `<div class="trade-cols">
+      <div><div class="tc-head">${badge(mine, 'xs')}<b>You give</b><span class="muted small">${esc(mine.id)}</span></div>${tradePicker(mine, 'give', tradeDraft.give)}
+        <label class="cash">Add cash you pay (${unit})<input type="number" min="0" step="${isFootball() ? 1 : 0.05}" data-cash="giveCash" value="${esc(tradeDraft.giveCash)}" placeholder="0" /></label></div>
+      <div><div class="tc-head">${badge(them, 'xs')}<b>You get</b><span class="muted small">${esc(them.id)} · ${esc(them.owner)}</span></div>${tradePicker(them, 'get', tradeDraft.get)}
+        <label class="cash">Cash you receive (${unit})<input type="number" min="0" step="${isFootball() ? 1 : 0.05}" data-cash="getCash" value="${esc(tradeDraft.getCash)}" placeholder="0" /></label></div>
+    </div>
+    <div class="trade-summary">
+      <p id="tradeSummary">${tradeSummary()}</p>
+      <div class="xi-actions"><button class="btn primary" data-act="trade-send" ${ready ? '' : 'disabled'}>Send offer to ${esc(them.id)}</button><button class="btn" data-act="trade-clear">Start over</button></div>
+    </div>`;
+}
+
+function tradeRow(t) {
+  const mine = me()?.teamId, from = team(t.from), to = team(t.to);
+  let actions = '';
+  if (t.status === 'pending' && t.to === mine) actions = `<button class="btn sm primary" data-act="trade-accept" data-id="${t.id}">Accept</button><button class="btn sm" data-act="trade-reject" data-id="${t.id}">Reject</button>`;
+  else if (t.status === 'pending' && (t.from === mine || isHost())) actions = `<button class="btn sm" data-act="trade-cancel" data-id="${t.id}">${t.from === mine ? 'Withdraw' : 'Cancel'}</button>`;
+  return `<li class="trade-row ${t.status}">
+    <span class="tr-teams">${badge(from, 'xs')}${esc(t.from)}<span class="muted">→</span>${badge(to, 'xs')}${esc(t.to)}</span>
+    <span class="tr-text">${esc(t.from)} gives ${esc(t.text.replace(' for ', ` · ${t.to} gives `))}</span>
+    <span class="tr-status ${t.status}">${TRADE_STATUS[t.status]}</span>
+    ${actions ? `<span class="tr-actions">${actions}</span>` : ''}
+  </li>`;
+}
+
+function tradesPage() {
+  const mine = team(me()?.teamId);
+  const trades = (state.trades || []).slice().reverse();
+  const open = trades.filter(t => t.status === 'pending'), done = trades.filter(t => t.status !== 'pending');
+  app.innerHTML = `${topBar()}
+  <main class="page">
+    <div class="page-head"><div><h1>Trades</h1>
+      <p class="muted">Swap players with other teams, with cash either way if you like. Traded players keep their auction price and leave both ${XI()}s, so pick your ${XI()} again afterwards.</p></div></div>
+    ${subNav()}
+    <div class="rank-bar card"><span class="rank-bar-icon" aria-hidden="true">⇄</span>
+      <p>${state.tradeOpen ? 'The trade window is <b>open</b>.' : 'The trade window is <b>closed</b>. The host can reopen it.'}</p>
+      <div class="rank-bar-actions">${isHost() ? `<button class="btn ${state.tradeOpen ? '' : 'primary'}" data-act="trade-window">${state.tradeOpen ? 'Close trade window' : 'Open trade window'}</button>` : ''}</div>
+    </div>
+    <div class="trades">
+      ${mine && state.tradeOpen ? `<section class="card"><div class="card-head"><h2>Make an offer</h2>${tradeDraft ? '<button class="link" data-act="trade-clear">Change team</button>' : ''}</div>${tradeBuilder(mine)}</section>` : ''}
+      <section class="card"><div class="card-head"><h2>Open offers</h2><span class="muted small">${open.length}</span></div>
+        <ul class="trade-list">${open.map(tradeRow).join('') || '<li class="empty">No open offers.</li>'}</ul></section>
+      <section class="card"><div class="card-head"><h2>Trade history</h2></div>
+        <ul class="trade-list">${done.map(tradeRow).join('') || '<li class="empty">No trades yet.</li>'}</ul></section>
+    </div>
+  </main>`;
+}
+
 function resultsView() {
   if (view === 'xi') xiPage();
   else if (view === 'xi-edit') xiEditPage();
   else if (view === 'summary') summaryPage();
   else if (view === 'ranking' && state.ranking) rankingPage();
+  else if (view === 'trades') tradesPage();
   else squadsPage(true);
 }
 
@@ -1240,7 +1330,27 @@ app.addEventListener('click', e => {
   else if (act === 'timer') socket.emit('setTimer', { seconds: Number(el.dataset.s) });
   else if (act === 'leave') { socket.emit('leave'); save(null); state = null; view = 'board'; draft = null; history.replaceState(null, '', '/'); render(true); }
   else if (act === 'rank') socket.emit('rankTeams', null, res => res?.ok || toast(res?.error || 'Could not rank the teams.'));
-  else if (['squads', 'board', 'xi', 'xi-edit', 'summary', 'ranking'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
+  else if (act === 'trade-to') { tradeDraft = { to: el.dataset.team, give: [], get: [], giveCash: '', getCash: '' }; render(true); }
+  else if (act === 'trade-pick') {
+    const side = el.dataset.side, id = Number(el.dataset.id), list = tradeDraft[side];
+    tradeDraft[side] = list.includes(id) ? list.filter(x => x !== id) : [...list, id];
+    render(true);
+  }
+  else if (act === 'trade-send') {
+    const f = isFootball() ? 1 : 100; // cash is typed in crore / €M
+    socket.emit('proposeTrade', { ...tradeDraft, giveCash: Math.round((+tradeDraft.giveCash || 0) * f), getCash: Math.round((+tradeDraft.getCash || 0) * f) }, res => {
+      if (!res?.ok) return toast(res?.error || 'Could not send the offer.');
+      toast(`Offer sent to ${tradeDraft.to}.`); tradeDraft = null; render(true);
+    });
+  }
+  else if (act === 'trade-clear') { tradeDraft = null; render(true); }
+  else if (act === 'trade-accept' || act === 'trade-reject') {
+    socket.emit('respondTrade', { id: Number(el.dataset.id), accept: act === 'trade-accept' }, res => res?.ok
+      ? toast(act === 'trade-accept' ? 'Trade done.' : 'Offer rejected.') : toast(res?.error || 'Could not answer the offer.'));
+  }
+  else if (act === 'trade-cancel') socket.emit('cancelTrade', { id: Number(el.dataset.id) }, res => res?.ok || toast(res?.error || 'Could not cancel.'));
+  else if (act === 'trade-window') socket.emit('tradeWindow', { open: !state.tradeOpen });
+  else if (['squads', 'board', 'xi', 'xi-edit', 'summary', 'ranking', 'trades'].includes(act)) { view = act; draft = null; render(true); scrollTo(0, 0); }
   else if (act === 'mode') socket.emit('setMode', { mode: el.dataset.mode });
   else if (act === 'kick') {
     const note = state.phase === 'auction' ? ' Their players go back into the auction and their team becomes free.' : '';
@@ -1264,6 +1374,15 @@ app.addEventListener('click', e => {
     });
   }
   else socket.emit(act); // start, bid, pause, skip, end
+});
+
+// Trade cash boxes keep their value in the draft across re-renders.
+app.addEventListener('input', e => {
+  if (e.target.dataset.cash && tradeDraft) {
+    tradeDraft[e.target.dataset.cash] = e.target.value;
+    const out = document.getElementById('tradeSummary');
+    if (out) out.innerHTML = tradeSummary();
+  }
 });
 
 // Chat

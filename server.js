@@ -54,6 +54,7 @@ function createRoom(sport) {
     members: new Map(), purse: {}, startPurse: {}, squads: {}, xi: {},
     queue: [], unsold: [], unsoldFinal: [], unsoldRound: false, soldLog: [],
     ranking: null, // team rankings from the XIs, once the host reveals them
+    trades: [], tradeOpen: true, nextTradeId: 1, // player trades after the auction
     rtmCards: 0, rtmLeft: {}, rtm: null, // Right to Match: cards per team, cards left, decision in progress
     lot: null, bid: null, leader: null, timeLeft: 0, status: 'idle', // live | rtm | closed
     result: null, paused: false, log: [], interval: null, nextTimer: null, cleanupTimer: null
@@ -103,6 +104,7 @@ function publicState(room) {
     teams: teamsOf(room).map(t => ({ ...t, owner: owners[t.id] || null, purse: room.purse[t.id], startPurse: room.startPurse[t.id], squad: room.squads[t.id], xi: room.xi[t.id], rtmLeft: room.rtmLeft[t.id] })),
     lot: room.lot, bid: room.bid, leader: room.leader, timeLeft: room.timeLeft,
     status: room.status, result: room.result, paused: room.paused, rtm: room.rtm, ranking: room.ranking,
+    trades: room.trades.slice(-40), tradeOpen: room.tradeOpen,
     nextBid: room.lot ? nextBid(room) : null,
     remaining: room.queue.length, unsoldRound: room.unsoldRound,
     upcoming: upcomingSets(room),
@@ -333,6 +335,62 @@ function canBid(room, teamId) {
   return cannotBuy(room, teamId, nextBid(room));
 }
 
+// ---------- trades (after the auction) ----------
+// An offer: team `from` gives players `give` (+ `giveCash`) to team `to` for players `get` (+ `getCash`).
+// Everything is checked again when the other team accepts, because squads and purses may have changed.
+const activeOwner = (room, teamId) => [...room.members.values()].find(m => m.teamId === teamId && !m.kicked);
+
+function tradeProblem(room, t) {
+  if (room.phase !== 'finished') return 'Trades open after the auction ends.';
+  if (!room.tradeOpen) return 'The host has closed the trade window.';
+  if (t.from === t.to) return 'Pick another team to trade with.';
+  if (!activeOwner(room, t.from) || !activeOwner(room, t.to)) return 'Both teams need an owner in the room.';
+  if (!t.give.length && !t.get.length) return 'Add at least one player to the trade.';
+  const own = (team, ids) => ids.every(id => room.squads[team].some(p => p.id === id));
+  if (!own(t.from, t.give)) return `${t.from} no longer has every player in this offer.`;
+  if (!own(t.to, t.get)) return `${t.to} no longer has every player in this offer.`;
+  if (t.giveCash > room.purse[t.from]) return `${t.from} can't afford ${money(room)(t.giveCash)}.`;
+  if (t.getCash > room.purse[t.to]) return `${t.to} can't afford ${money(room)(t.getCash)}.`;
+  const rules = rulesFor(room);
+  const after = (team, out, inn) => {
+    const sq = room.squads[team].filter(p => !out.includes(p.id)).concat(room.squads[inn.team].filter(p => inn.ids.includes(p.id)));
+    if (sq.length > rules.maxSquad) return `${team} would have ${sq.length} players (max ${rules.maxSquad}).`;
+    if (rules.maxOverseas != null && sq.filter(p => p.overseas).length > rules.maxOverseas) return `${team} would have too many overseas players (max ${rules.maxOverseas}).`;
+    return null;
+  };
+  return after(t.from, t.give, { team: t.to, ids: t.get }) || after(t.to, t.get, { team: t.from, ids: t.give });
+}
+
+function describeTrade(room, t) {
+  const name = (team, id) => room.squads[team].find(p => p.id === id)?.name || 'a player';
+  const side = (team, ids, cash) => [...ids.map(id => name(team, id)), ...(cash ? [money(room)(cash)] : [])].join(' + ') || 'nothing';
+  return `${side(t.from, t.give, t.giveCash)} for ${side(t.to, t.get, t.getCash)}`;
+}
+
+function executeTrade(room, t) {
+  const move = (fromTeam, toTeam, ids) => {
+    const moving = room.squads[fromTeam].filter(p => ids.includes(p.id));
+    room.squads[fromTeam] = room.squads[fromTeam].filter(p => !ids.includes(p.id));
+    room.squads[toTeam].push(...moving.map(p => ({ ...p, tradedFrom: fromTeam, retained: false })));
+    for (const team of [fromTeam, toTeam]) { // traded players leave both XIs
+      const x = room.xi[team];
+      x.xi = x.xi.filter(id => !ids.includes(id));
+      if (ids.includes(x.impact)) x.impact = null;
+    }
+  };
+  const summary = describeTrade(room, t); // before the players move
+  move(t.from, t.to, t.give);
+  move(t.to, t.from, t.get);
+  // cash changes hands; starting purses move too so "spent at auction" stays the same
+  for (const [team, delta] of [[t.from, t.getCash - t.giveCash], [t.to, t.giveCash - t.getCash]]) {
+    room.purse[team] += delta;
+    room.startPurse[team] += delta;
+  }
+  t.status = 'accepted'; t.done = Date.now();
+  if (room.ranking) room.ranking.stale = true;
+  addLog(room, `Trade done: ${t.from} sends ${summary.replace(' for ', ` to ${t.to} for `)}`, 'team', { teamId: t.from });
+}
+
 // ---------- sockets ----------
 io.on('connection', socket => {
   const room = () => rooms.get(socket.data.code);
@@ -517,6 +575,56 @@ io.on('connection', socket => {
     addLog(r, `Team rankings are out: ${teamName(r, top.teamId)} top the table with ${top.overall}/100`, 'host');
     broadcast(r);
     cb?.({ ok: true });
+  });
+
+  socket.on('proposeTrade', ({ to, give, get, giveCash, getCash } = {}, cb) => {
+    const r = room(), m = member(); if (!r || !m?.teamId) return cb?.({ ok: false, error: 'You need a team to trade.' });
+    const ids = a => (Array.isArray(a) ? [...new Set(a.map(Number))].slice(0, 25) : []);
+    const step = SPORTS[r.sport].purseStep;
+    const cash = v => Math.max(0, Math.round((Number(v) || 0) / step) * step);
+    const t = { id: r.nextTradeId++, from: m.teamId, to: String(to || ''), give: ids(give), get: ids(get), giveCash: cash(giveCash), getCash: cash(getCash), status: 'pending', at: Date.now() };
+    if (!teamsOf(r).some(x => x.id === t.to)) return cb?.({ ok: false, error: 'Pick a team to trade with.' });
+    const err = tradeProblem(r, t); if (err) return cb?.({ ok: false, error: err });
+    t.text = describeTrade(r, t);
+    r.trades.push(t);
+    addLog(r, `${t.from} offered ${t.to} a trade: ${t.text}`, 'team', { teamId: t.from });
+    broadcast(r);
+    cb?.({ ok: true });
+  });
+
+  socket.on('respondTrade', ({ id, accept } = {}, cb) => {
+    const r = room(), m = member(); if (!r || !m) return;
+    const t = r.trades.find(x => x.id === Number(id) && x.status === 'pending');
+    if (!t) return cb?.({ ok: false, error: 'That offer is no longer open.' });
+    if (m.teamId !== t.to) return cb?.({ ok: false, error: `Only ${t.to} can answer this offer.` });
+    if (!accept) {
+      t.status = 'rejected'; t.done = Date.now();
+      addLog(r, `${t.to} rejected ${t.from}'s trade offer`, 'team', { teamId: t.to });
+      broadcast(r); return cb?.({ ok: true });
+    }
+    const err = tradeProblem(r, t);
+    if (err) { t.status = 'expired'; t.done = Date.now(); broadcast(r); return cb?.({ ok: false, error: `This trade can't go through: ${err}` }); }
+    executeTrade(r, t);
+    broadcast(r);
+    cb?.({ ok: true });
+  });
+
+  socket.on('cancelTrade', ({ id } = {}, cb) => {
+    const r = room(), m = member(); if (!r || !m) return;
+    const t = r.trades.find(x => x.id === Number(id) && x.status === 'pending');
+    if (!t || (m.teamId !== t.from && !isHost())) return cb?.({ ok: false, error: 'You can only cancel your own offers.' });
+    t.status = 'cancelled'; t.done = Date.now();
+    addLog(r, `${t.from} withdrew a trade offer to ${t.to}`, 'team', { teamId: t.from });
+    broadcast(r);
+    cb?.({ ok: true });
+  });
+
+  socket.on('tradeWindow', ({ open } = {}) => {
+    const r = room(); if (!r || !isHost() || r.phase !== 'finished') return;
+    r.tradeOpen = !!open;
+    if (!r.tradeOpen) r.trades.filter(t => t.status === 'pending').forEach(t => { t.status = 'expired'; t.done = Date.now(); });
+    addLog(r, r.tradeOpen ? 'The host opened the trade window' : 'The host closed the trade window', 'host');
+    broadcast(r);
   });
 
   socket.on('pause', () => {

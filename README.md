@@ -68,3 +68,9 @@ and run `python tools/build_form.py <matches folder> people.csv names.csv <playe
 ## Host controls
 The host can remove a player from the room (Remove, next to their name). During the auction their team is freed and
 the players they bought go back into the auction; after the auction their results stay but they can't rejoin.
+
+## Trades
+After the auction, owners can trade on the **Trades** tab: pick a team, choose players to give and get, and add cash
+either way. The other owner accepts or rejects; the sender can withdraw. A trade is checked again when accepted (both
+teams still have the players, the payer can afford the cash, squad size and overseas limits hold). Traded players keep
+their auction price, show "From <team>", and leave both XIs. The host can open or close the trade window.
